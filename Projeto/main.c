@@ -89,10 +89,10 @@ int main(void)
     int framesCounter = 0; // Animation handler
 
     // Load assets
-    Texture2D background = LoadTexture("textures/cyberpunk_street_background.png");
-    Texture2D midground = LoadTexture("textures/cyberpunk_street_midground.png");
-    Texture2D foreground = LoadTexture("textures/cyberpunk_street_foreground.png");
-    Texture2D character = LoadTexture("textures/hero_atlas.png");        // Texture loading
+    Texture2D background = LoadTexture("resources/Background/cyberpunk_street_background.png");
+    Texture2D midground = LoadTexture("resources/Background/cyberpunk_street_midground.png");
+    Texture2D foreground = LoadTexture("resources/Background/cyberpunk_street_foreground.png");
+    Texture2D character = LoadTexture("resources/Atlas/hero_atlas.png");        // Texture loading
     //Texture2D character = LoadTexture("textures/walk.png");        // Texture loading
 
     // Environment Init
