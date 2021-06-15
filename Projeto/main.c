@@ -1,4 +1,4 @@
-#include "raylib/raylib.h"
+#include "raylib.h"
 #include <stdlib.h>     
 #include <stdio.h>
 #include <time.h>
@@ -7,6 +7,9 @@
 #define WP_GUN_ID 1;
 #define WP_MACHINEGUN_ID 2;
 #define WP_SWORD_ID 3;
+
+// Enums
+enum CHARACTER_STATE{IDLE, WALKING, HURT, JUMPING, FALLING, SHOOTING, DYING};
 
 // Structs
 
@@ -25,10 +28,15 @@ typedef struct player
 
     // Animation
     Rectangle currentAnimationFrameRect;
-    int animationFrameSpeed;
+    enum CHARACTER_STATE currentAnimationState;
+    int isFacingRight;
+    float animationFrameSpeed;
     int animationFrameWidth;
     int animationFrameHeight;
     int currentAnimationFrame;
+    float timeSinceLastFrame;
+    float characterWidthScale;
+    float characterHeightScale;
 
 }  Player;
 
@@ -61,13 +69,12 @@ typedef struct weapon
 // Headers
 void CreatePlayer(Player *player, int maxHP, Vector2 position, float imageWidth, float imageHeight, int imageFramesCount);
 void UpdatePlayer(Player *player, float delta, Props *props, int framesCounter);
+void UpdateProps(Player *player, Props *props, float delta, int framesCounter);
 void UpdateClampedCameraPlayer(Camera2D *camera, Player *player, Props *props, float delta, int width, int height);
 
 // Environment handlers
 float GRAVITY = 400;
 int numBackgroundRendered = 3;
-
-//
 
 
 int main(void)
@@ -82,10 +89,11 @@ int main(void)
     int framesCounter = 0; // Animation handler
 
     // Load assets
-    Texture2D background = LoadTexture("resources/cyberpunk_street_background.png");
-    Texture2D midground = LoadTexture("resources/cyberpunk_street_midground.png");
-    Texture2D foreground = LoadTexture("resources/cyberpunk_street_foreground.png");
-    Texture2D character = LoadTexture("resources/walk.png");        // Texture loading
+    Texture2D background = LoadTexture("textures/cyberpunk_street_background.png");
+    Texture2D midground = LoadTexture("textures/cyberpunk_street_midground.png");
+    Texture2D foreground = LoadTexture("textures/cyberpunk_street_foreground.png");
+    Texture2D character = LoadTexture("textures/hero_atlas.png");        // Texture loading
+    //Texture2D character = LoadTexture("textures/walk.png");        // Texture loading
 
     // Environment Init
     Props envProps[1] = {
@@ -111,6 +119,7 @@ int main(void)
         float deltaTime = GetFrameTime();
         framesCounter++;
         UpdatePlayer(&player, deltaTime, envProps, framesCounter);
+        UpdateProps(&player, envProps, deltaTime, framesCounter);
         UpdateClampedCameraPlayer(&camera, &player, envProps, deltaTime, screenWidth, screenHeight);
 
         // Draw cycle
@@ -131,6 +140,10 @@ int main(void)
                 DrawTextureEx(foreground, (Vector2){ foreground.width, 70 }, 0.0f, 2.0f, WHITE);
                 // Draw player
                 DrawTextureRec(character, player.currentAnimationFrameRect, player.position, WHITE);
+                //float charWidth = player.animationFrameWidth*player.characterWidthScale;
+                //float charHeight= player.animationFrameHeight*player.characterHeightScale;
+                //Rectangle dstRect = {player.position.x, player.position.y, charWidth, charHeight};
+                //DrawTexturePro(character, player.currentAnimationFrameRect, dstRect, (Vector2) {0, 0}, 0, WHITE);
                 // Draw props
                 for (int i = 0; i < 1; i++) { // TODO 1 is "props[]"'s size
                     if (!envProps[i].isInvisible)
@@ -143,10 +156,10 @@ int main(void)
 
             // TODO o que está nessa região fica "parado" em relação à câmera
             // Debbug
-            char playerPositionText[20];
-            sprintf(playerPositionText, "%f", player.position.x);
-            DrawText("Player position:", 0, 0, 20, WHITE);
-            DrawText(playerPositionText, 0, 25, 20, WHITE);
+            char debbugMsg[20];
+            DrawText("Hit / Floor:", 0, 0, 20, WHITE);
+            sprintf(debbugMsg, "%i", player.isGrounded);
+            DrawText(debbugMsg, 0, 25, 20, WHITE);
 
         EndDrawing();
     }
@@ -176,64 +189,70 @@ void CreatePlayer (Player *player, int maxHP, Vector2 position, float imageWidth
     player->jumpSpeed = 250;
     player->isGrounded = true;
 
-    player->animationFrameSpeed = 8;
-    player->animationFrameWidth = (float)imageWidth/imageFramesCount;
-    player->animationFrameHeight = imageHeight;
+    player->animationFrameSpeed = 0.08f;
+    player->animationFrameWidth = 122;//(float)imageWidth/imageFramesCount;
+    player->animationFrameHeight = 122;//imageHeight;
     player->currentAnimationFrame = 0;
+    player->currentAnimationState = IDLE;
+    player->isFacingRight = 1;
+    player->timeSinceLastFrame = 0;
     player->currentAnimationFrameRect.x = 0.0f;
     player->currentAnimationFrameRect.y = 0.0f;
     player->currentAnimationFrameRect.width = player->animationFrameWidth;
     player->currentAnimationFrameRect.height = player->animationFrameHeight;
+    player->characterWidthScale = 1.00f;
+    player->characterHeightScale = 1.00f;
 }
 
 void UpdatePlayer(Player *player, float delta, Props *props, int framesCounter)
 {
-    if (IsKeyDown(KEY_LEFT)) {
-        player->position.x -= player->walkSpeed*delta;
-        if (player->position.x < 0) {
-            player->position.x = 0;
-        } else
-        if (framesCounter >= (60/player->animationFrameSpeed)) {
-            framesCounter = 0;
-            player->currentAnimationFrame++;
+    enum CHARACTER_STATE currentState = player->currentAnimationState;
+    player->timeSinceLastFrame += delta;
 
-            if (player->currentAnimationFrame > 16) player->currentAnimationFrame = 1;
-
-            player->currentAnimationFrameRect.x = (float)player->currentAnimationFrame*player->animationFrameWidth;
-            player->currentAnimationFrameRect.width = -player->animationFrameWidth;
+    if (player->currentAnimationState != DYING && player->currentAnimationState != HURT) {
+        if (IsKeyDown(KEY_LEFT)) {
+            player->position.x -= player->walkSpeed*delta;
+            player->isFacingRight = -1;
+            player->currentAnimationState = WALKING;
+            
+        } else if (IsKeyDown(KEY_RIGHT)) {
+            player->position.x += player->walkSpeed*delta;
+            player->isFacingRight = 1;
+            player->currentAnimationState = WALKING;
+        } else {
+            player->currentAnimationState = IDLE;
         }
-    } else if (IsKeyDown(KEY_RIGHT)) {
-        player->position.x += player->walkSpeed*delta;
 
-        if (framesCounter >= (60/player->animationFrameSpeed)) {
-            framesCounter = 0;
-            player->currentAnimationFrame++;
-
-            if (player->currentAnimationFrame > 16) player->currentAnimationFrame = 1;
-
-            player->currentAnimationFrameRect.x = (float)player->currentAnimationFrame*player->animationFrameWidth;
-            player->currentAnimationFrameRect.width = player->animationFrameWidth;
+        if (IsKeyDown(KEY_SPACE) && player->isGrounded) 
+        {
+            player->velocity.y = -player->jumpSpeed;
+            player->isGrounded = false;
         }
-    }
 
-    if (IsKeyDown(KEY_SPACE) && player->isGrounded) 
-    {
-        player->velocity.y = -player->jumpSpeed;
-        player->isGrounded = false;
+        if (IsKeyPressed(KEY_H))
+            player->currentAnimationState = HURT;
+
+        if (IsKeyPressed(KEY_P))
+            player->currentHP = 0;
     }
 
     // Collision check
     int hitObstacle = 0;
+    int hasFloorBelow = 0;
+    Rectangle prect = {player->position.x, player->position.y, player->animationFrameWidth, player->animationFrameHeight};
+    Rectangle prectGrav = {player->position.x, player->position.y+1, player->animationFrameWidth, player->animationFrameHeight};
     for (int i = 0; i < 1; i++)  // TODO 1 is "props[]"'s size
     {
         Props *eprop = props + i;
         Vector2 *p = &(player->position);
         if (eprop->canBeStepped) {
-            Rectangle prect = {player->position.x, player->position.y, player->animationFrameWidth, player->animationFrameHeight};
             if (CheckCollisionRecs(eprop->rect, prect)) {
                 hitObstacle = 1;
                 player->velocity.y = 0.0f;
                 p->y = eprop->rect.y - player->animationFrameHeight;
+            }
+            if (CheckCollisionRecs(eprop->rect, prectGrav)) {
+                hasFloorBelow = 1;
             }
         }
     }
@@ -245,6 +264,109 @@ void UpdatePlayer(Player *player, float delta, Props *props, int framesCounter)
         player->isGrounded = false;
     } 
     else player->isGrounded = true;
+
+    if (hasFloorBelow) {
+        player->velocity.y = 0;
+        player->isGrounded = true;
+    }
+
+    // Animation handlers
+    if ((player->currentAnimationState != DYING) && (player->currentAnimationState != HURT)) {
+        if (!player->isGrounded) {
+            if (player->velocity.y < 0) {
+                player->currentAnimationState = JUMPING;
+            } else if(player->velocity.y > 0) {
+                player->currentAnimationState = FALLING;
+            }
+        }
+    }
+
+    // Atualização de estado quando o player morre
+    if (player->currentHP <= 0 && !(player->currentAnimationState == DYING)) {
+        player->currentAnimationState = DYING;
+    }
+
+    int animRow = 0;
+    if (currentState != player->currentAnimationState) {
+        player->timeSinceLastFrame = 0.0f;
+        player->currentAnimationFrame = 0;
+    }
+    switch (player->currentAnimationState)
+    {
+    case IDLE:
+        animRow = 0;
+        if (player->timeSinceLastFrame >= player->animationFrameSpeed) {
+            player->timeSinceLastFrame = 0.0f;
+            player->currentAnimationFrame++;
+            if (player->currentAnimationFrame > 5) player->currentAnimationFrame = 0; // 5 porque são 6 frames para essa animação 
+        }
+        break;
+    case WALKING:
+        animRow = 1;
+        if (player->timeSinceLastFrame >= player->animationFrameSpeed) {
+            player->timeSinceLastFrame = 0.0f;
+            player->currentAnimationFrame++;
+            if (player->currentAnimationFrame > 7) player->currentAnimationFrame = 0; // 7 porque são 8 frames para essa animação 
+        }
+        break;
+    case HURT:
+        animRow = 2;
+        if (player->timeSinceLastFrame >= player->animationFrameSpeed) {
+            player->timeSinceLastFrame = 0.0f;
+            player->currentAnimationFrame++;
+            if (player->currentAnimationFrame > 5) { // 5 porque são 6 frames para essa animação, depois muda o estado
+                player->currentAnimationFrame = 0; 
+                player->currentAnimationState = IDLE;
+            } else if (player->currentAnimationFrame < 2) {
+                player->position.x -= player->isFacingRight*150*delta;
+            }
+        }
+        break;
+    case JUMPING:
+        animRow = 3;
+        if (player->timeSinceLastFrame >= player->animationFrameSpeed) {
+            player->timeSinceLastFrame = 0.0f;
+            player->currentAnimationFrame++;
+            if (player->currentAnimationFrame > 4) player->currentAnimationFrame = 4; // 4 porque são 5 frames para essa animação, além disso, mantém o frame em "4"
+        }
+        break;
+    case FALLING:
+        animRow = 3;
+        if (player->timeSinceLastFrame >= player->animationFrameSpeed) {
+            player->timeSinceLastFrame = 0.0f;
+            player->currentAnimationFrame++;
+            player->currentAnimationFrame = 5; // Mantém o frame em "4", pois a queda é apenas 1 frame
+        }
+        break;
+    case DYING:
+        animRow = 4;
+        if (player->timeSinceLastFrame >= player->animationFrameSpeed) {
+            player->timeSinceLastFrame = 0.0f;
+            player->currentAnimationFrame++;
+            if (player->currentAnimationFrame > 6) { // 6 porque são 7 frames para essa animação, além disso, mantém o frame em "6"
+                player->currentAnimationFrame = 6; 
+            } else {
+                player->position.x -= player->isFacingRight*100*delta;
+            }
+        }
+        break;
+    default:
+        break;
+    }
+
+    // Update player animation frame Rect
+    player->currentAnimationFrameRect.x = (float)player->currentAnimationFrame * player->animationFrameWidth;
+    player->currentAnimationFrameRect.y = animRow * player->animationFrameHeight;
+    player->currentAnimationFrameRect.width = player->isFacingRight * player->animationFrameWidth;
+
+    // Limitar posição do player
+    if (player->position.x < 0) {
+        player->position.x = 0;
+    } 
+}
+
+void UpdateProps(Player *player, Props *props, float delta, int framesCounter) {
+
 }
 
 void UpdateClampedCameraPlayer(Camera2D *camera, Player *player, Props *props, float delta, int width, int height)
