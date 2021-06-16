@@ -422,9 +422,9 @@ void UpdateClampedCameraPlayer(Camera2D *camera, Player *player, Props *props, f
 }
 
 void SelectionMenu(Font font, Vector2 screenSize, Texture2D logo){
-    int x_offset = 50;
-    int y_offset = 50;
-    float fontScale = 0.7;
+    const int x_offset = 50;
+    const int y_offset = 50;
+    const float fontScale = 0.7;
     bool isFullScreen = IsWindowFullscreen();
     char *textoTela[2];
 
