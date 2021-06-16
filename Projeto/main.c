@@ -10,8 +10,11 @@
 
 // Enums
 enum CHARACTER_STATE{IDLE, WALKING, HURT, JUMPING, FALLING, SHOOTING, DYING};
+typedef enum GAME_SCREEN{LOGO, MENU, INGAME}GameScreen;
+
 
 // Structs
+
 
 typedef struct player
 {
@@ -71,11 +74,15 @@ void CreatePlayer(Player *player, int maxHP, Vector2 position, float imageWidth,
 void UpdatePlayer(Player *player, float delta, Props *props, int framesCounter);
 void UpdateProps(Player *player, Props *props, float delta, int framesCounter);
 void UpdateClampedCameraPlayer(Camera2D *camera, Player *player, Props *props, float delta, int width, int height);
+void SelectionMenu(Font font, Vector2 screenSize, Texture2D logo);
 
 // Environment handlers
 float GRAVITY = 400;
 int numBackgroundRendered = 3;
+char option = 0;
 
+// enums
+GameScreen gameScreen = LOGO;
 
 int main(void)
 {
@@ -84,16 +91,21 @@ int main(void)
     const int screenHeight = 450;
     //SetConfigFlags(FLAG_FULLSCREEN_MODE); // Fullscreen
 
+
     InitWindow(screenWidth, screenHeight, "Project N30-N");
     SetTargetFPS(60);      // Set our game to run at 60 frames-per-second
     int framesCounter = 0; // Animation handler
 
-    // Load assets
+    // Load assets 
+    Texture2D logo = LoadTexture("textures/logo.png");
     Texture2D background = LoadTexture("textures/cyberpunk_street_background.png");
     Texture2D midground = LoadTexture("textures/cyberpunk_street_midground.png");
     Texture2D foreground = LoadTexture("textures/cyberpunk_street_foreground.png");
     Texture2D character = LoadTexture("textures/hero_atlas.png");        // Texture loading
     //Texture2D character = LoadTexture("textures/walk.png");        // Texture loading
+
+    //load Fonts
+    Font menuFont = LoadFont("textures/fonts/mecha.png");
 
     // Environment Init
     Props envProps[1] = {
@@ -112,18 +124,37 @@ int main(void)
     camera.rotation = 0.0f;
     camera.zoom = 1.00f;
 
+    //main menu
+    float transparencia = 0;
     // Main game loop
     while (!WindowShouldClose())
-    {
-        // Updates
+    {   
+
         float deltaTime = GetFrameTime();
         framesCounter++;
+        BeginDrawing();
+        
+        switch (gameScreen)
+        {
+        case LOGO:
+                if(transparencia > 1) transparencia = 1;
+                DrawTextureEx(logo, (Vector2){-345, 0}, 0, 2.35, Fade(WHITE, transparencia+=(0.6*deltaTime)));
+                if(framesCounter % 120 == 0) gameScreen = MENU;
+                ClearBackground(BLACK);
+            break;
+
+        case MENU:
+            SelectionMenu(menuFont, (Vector2){screenWidth/2, screenHeight/2}, logo);
+            break;
+        case INGAME:
+
+        // Updates
         UpdatePlayer(&player, deltaTime, envProps, framesCounter);
         UpdateProps(&player, envProps, deltaTime, framesCounter);
         UpdateClampedCameraPlayer(&camera, &player, envProps, deltaTime, screenWidth, screenHeight);
 
         // Draw cycle
-        BeginDrawing();
+        
 
             ClearBackground(GetColor(0x052c46ff));
 
@@ -160,16 +191,22 @@ int main(void)
             DrawText("Hit / Floor:", 0, 0, 20, WHITE);
             sprintf(debbugMsg, "%i", player.isGrounded);
             DrawText(debbugMsg, 0, 25, 20, WHITE);
-
+            
+            break;
+        
+        default:
+            break;
+        }
+        
         EndDrawing();
     }
 
     // Unload
+    UnloadTexture(logo);
     UnloadTexture(background);
     UnloadTexture(midground);
-    UnloadTexture(foreground);
-    UnloadTexture(character);
-
+    UnloadTexture(foreground);        
+    UnloadFont(menuFont);
     CloseWindow();
     return 0;
 }
@@ -382,4 +419,53 @@ void UpdateClampedCameraPlayer(Camera2D *camera, Player *player, Props *props, f
     if (max.y < height) camera->offset.y = height - (max.y - height/2);
     if (min.x > 0) camera->offset.x = width/2 - min.x;
     if (min.y > 0) camera->offset.y = height/2 - min.y;
+}
+
+void SelectionMenu(Font font, Vector2 screenSize, Texture2D logo){
+    int x_offset = 50;
+    int y_offset = 50;
+    float fontScale = 0.7;
+    bool isFullScreen = IsWindowFullscreen();
+    char *textoTela[2];
+
+    if(isFullScreen){
+        textoTela[0] = "MODO JANELA";
+        textoTela[1] = "*MODO JANELA*";
+    }else{
+        textoTela[0] = "TELA CHEIA";
+        textoTela[1] = "*TELA CHEIA*";
+    }
+
+    if (IsKeyPressed(KEY_UP))
+    {
+        (option <= 0) ? option = 2 : option--;
+    }else if(IsKeyPressed(KEY_DOWN)){
+        (option >= 2) ? option = 0 : option++;
+    }
+
+    switch (option)
+    {
+    case 0:
+        DrawTextureEx(logo, (Vector2){-345, 0}, 0, 2.35, WHITE);
+        DrawTextEx(font, "*NOVO JOGO*", (Vector2){screenSize.x + x_offset, screenSize.y + y_offset}, 40, font.baseSize*fontScale, WHITE);
+        DrawTextEx(font, textoTela[0], (Vector2){screenSize.x + x_offset, screenSize.y + y_offset + 45}, 30, font.baseSize*fontScale, WHITE);
+        DrawTextEx(font, "SAIR", (Vector2){screenSize.x + x_offset, screenSize.y + y_offset + 85}, 30, font.baseSize*fontScale, WHITE);
+        if(IsKeyDown(KEY_ENTER)) gameScreen = INGAME;
+        break;
+    case 1:
+        DrawTextureEx(logo, (Vector2){-345, 0}, 0, 2.35, WHITE);
+        DrawTextEx(font, "NOVO JOGO", (Vector2){screenSize.x + x_offset, screenSize.y + y_offset }, 30, font.baseSize*fontScale, WHITE);
+        DrawTextEx(font, textoTela[1], (Vector2){screenSize.x + x_offset, screenSize.y + y_offset + 40}, 40, font.baseSize*fontScale, WHITE);
+        DrawTextEx(font, "SAIR", (Vector2){screenSize.x + x_offset, screenSize.y + y_offset + 85}, 30, font.baseSize*fontScale, WHITE);
+        if (IsKeyDown(KEY_ENTER)) ToggleFullscreen();
+        break;
+    case 2:
+        DrawTextureEx(logo, (Vector2){-345, 0}, 0, 2.35, WHITE);
+        DrawTextEx(font, "NOVO JOGO", (Vector2){screenSize.x + x_offset, screenSize.y + y_offset}, 30, font.baseSize*fontScale, WHITE);
+        DrawTextEx(font, textoTela[0], (Vector2){screenSize.x + x_offset, screenSize.y + y_offset + 40}, 30, font.baseSize*fontScale, WHITE);
+        DrawTextEx(font, "*SAIR*", (Vector2){screenSize.x + x_offset, screenSize.y + y_offset + 85}, 40, font.baseSize*fontScale, WHITE);
+        if(IsKeyDown(KEY_ENTER)) CloseWindow();
+    default:
+        break;
+    }
 }
