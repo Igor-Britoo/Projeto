@@ -6,11 +6,11 @@ int main(void) {
     SetTargetFPS(60);      // Set our game to run at 60 frames-per-second
 
     // Load assets
-    Texture2D backgroundTex = LoadTexture("textures/cyberpunk_street_background.png");
-    Texture2D midgroundTex = LoadTexture("textures/cyberpunk_street_midground.png");
-    Texture2D foregroundTex = LoadTexture("textures/cyberpunk_street_foreground.png");
-    Texture2D characterTex = LoadTexture("textures/hero_atlas.png");    
-    Texture2D swordsmanTex = LoadTexture("textures/hero_atlas.png");        
+    Texture2D backgroundTex = LoadTexture("resources/Background/cyberpunk_street_background.png");
+    Texture2D midgroundTex = LoadTexture("resources/Background/cyberpunk_street_midground.png");
+    Texture2D foregroundTex = LoadTexture("resources/Background/cyberpunk_street_foreground.png");
+    Texture2D characterTex = LoadTexture("resources/Atlas/hero_atlas.png");    
+    Texture2D swordsmanTex = LoadTexture("resources/Atlas/hero_atlas.png");        
 
     // Player Init
     Player player = CreatePlayer(100, (Vector2){0, 308},characterTex.width, characterTex.height);
