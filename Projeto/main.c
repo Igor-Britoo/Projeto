@@ -40,7 +40,7 @@ int main(void) {
     while (!WindowShouldClose()) {
         // Updates
         float deltaTime = GetFrameTime();
-        UpdatePlayer(&player, deltaTime, envProps, camMinX);
+        UpdatePlayer(&player, &enemies[0], deltaTime, envProps, camMinX);
         // Atualizar limites de câmera e posição
         camMinX = (camMinX < camera.target.x - camera.offset.x ? camera.target.x - camera.offset.x : camMinX);
         UpdateClampedCameraPlayer(&camera, &player, envProps, deltaTime, screenWidth, screenHeight, &camMinX, camMaxX);
@@ -79,11 +79,20 @@ int main(void) {
                 DrawTexturePro(characterTex, player.entity.currentAnimationFrameRect, dstRect, (Vector2) {0, 0}, 0, WHITE);
 
                 // Draw Enemy
-                
                 charWidth = enemies[0].entity.animationFrameWidth*enemies[0].entity.characterWidthScale;
                 charHeight= enemies[0].entity.animationFrameHeight*enemies[0].entity.characterHeightScale;
                 dstRect = (Rectangle){enemies[0].entity.position.x, enemies[0].entity.position.y, charWidth, charHeight};
                 DrawTexturePro(swordsmanTex, enemies[0].entity.currentAnimationFrameRect, dstRect, (Vector2) {0, 0}, 0, WHITE);
+                
+                float eyesX = enemies[0].entity.position.x + enemies[0].entity.eyesOffset.x;
+                float eyesY = enemies[0].entity.position.y + enemies[0].entity.eyesOffset.y;
+                Rectangle detectionBox;
+                if (enemies[0].entity.isFacingRight == 1) {
+                    detectionBox = (Rectangle){eyesX, eyesY, enemies[0].viewDistance, 5};
+                } else {
+                    detectionBox = (Rectangle){eyesX-enemies[0].viewDistance, eyesY, enemies[0].viewDistance, 5};
+                }
+                DrawRectangle(detectionBox.x, detectionBox.y, detectionBox.width, detectionBox.height, RED);
 
                 // Draw props
                 for (int i = 0; i < 1; i++) { // TODO 1 is "props[]"'s size
@@ -96,13 +105,55 @@ int main(void) {
 
             // TODO o que está nessa região fica "parado" em relação à câmera
 
-            // Debbug
-            char debbugMsg[20];
-            //DrawText("Far:", 0, 0, 20, WHITE);
-            sprintf(debbugMsg, "%f", enemies[0].entity.velocity.x);
-            DrawText(debbugMsg, 0, 0, 20, WHITE);
-            sprintf(debbugMsg, "%d", enemies[0].entity.velocity.x != 0.00000000000f);
-            DrawText(debbugMsg, 0, 25, 20, WHITE);
+    ////////////////////////////////////////////////// FIM DE DEBBUG //////////////////////////////////////////////////
+    char state[30];
+    switch (enemies[0].entity.currentAnimationState) {
+    case IDLE:
+        strcpy(state, "ANIMATION STATE: IDLE");
+        break;
+    case WALKING:
+        strcpy(state, "ANIMATION STATE: WALKING");
+        break;
+    case JUMPING:
+        strcpy(state, "ANIMATION STATE: JUMPING");
+        break;
+    case FALLING:
+        strcpy(state, "ANIMATION STATE: FALLING");
+        break;
+    case ATTACKING:
+        strcpy(state, "ANIMATION STATE: ATTACKING");
+        break;
+    default:
+        break;
+    }
+    DrawText(state, 0, 600, 20, RED);
+
+    switch (enemies[0].behavior) {
+    case NONE:
+        strcpy(state, "BEHAVIOR STATE: NONE");
+        break;
+    case ATTACK:
+        strcpy(state, "BEHAVIOR STATE: ATTACK");
+        break;
+    case MOVE:
+        strcpy(state, "BEHAVIOR STATE: MOVE");
+        break;
+    default:
+        break;
+    }
+    DrawText(state, 0, 625, 20, RED);
+
+    sprintf(state, "%f", enemies[0].entity.position.x);
+    DrawText("ePx:", 0, 650, 20, RED);
+    DrawText(state, 100, 650, 20, RED);
+    sprintf(state, "%f", enemies[0].target.x);
+    DrawText("tPx", 0, 675, 20, RED);
+    DrawText(state, 100, 675, 20, RED);
+    sprintf(state, "%f", enemies[0].noDetectionTime);
+    DrawText("nDT:", 0, 700, 20, RED);
+    DrawText(state, 100, 700, 20, RED);
+
+    ////////////////////////////////////////////////// FIM DE DEBBUG //////////////////////////////////////////////////
 
         EndDrawing();
     }
@@ -171,6 +222,7 @@ Player CreatePlayer (int maxHP, Vector2 position, float imageWidth, float imageH
     newPlayer.entity.sprintSpeed = 800;
     newPlayer.entity.jumpSpeed = 250;
     newPlayer.entity.isGrounded = true;
+    newPlayer.entity.eyesOffset = (Vector2) {55, 40};
 
     newPlayer.entity.animationFrameSpeed = 0.08f;
     newPlayer.entity.animationFrameWidth = 122;//(float)imageWidth/imageFramesCount;
@@ -194,14 +246,19 @@ Enemy CreateEnemy(enum ENEMY_CLASSES class, int maxHP, Vector2 position, float i
 
     newEnemy.target = (Vector2){-1, -1};
     newEnemy.class = class;
-    newEnemy.viewDistance = 150;
-    newEnemy.behaviorChangeInterval = 4; // Tempo em segundos para tentar alterar comportamento
+    newEnemy.behavior = NONE;
+    newEnemy.viewDistance = 600;
+    newEnemy.attackRange = 200;
+    newEnemy.behaviorChangeInterval = 3.5f; // Tempo em segundos para tentar alterar comportamento
     newEnemy.timeSinceLastBehaviorChange = 0;
+    newEnemy.noDetectionTime = 0;
+    newEnemy.loseTargetInterval = 5;
+    newEnemy.spawnLocation = (Vector2){position.x, position.y};
+    newEnemy.maxDistanceToSpawn = 1000;
 
     newEnemy.entity.maxHP = maxHP;
     newEnemy.entity.currentHP = maxHP;
-    newEnemy.entity.position.x = position.x;
-    newEnemy.entity.position.y = position.y;
+    newEnemy.entity.position = newEnemy.spawnLocation;
     newEnemy.entity.velocity.x = 0.0f;
     newEnemy.entity.velocity.y = 0.0f;
     newEnemy.entity.momentum.x = 0.0f;
@@ -210,6 +267,7 @@ Enemy CreateEnemy(enum ENEMY_CLASSES class, int maxHP, Vector2 position, float i
     newEnemy.entity.sprintSpeed = 800;
     newEnemy.entity.jumpSpeed = 250;
     newEnemy.entity.isGrounded = false;
+    newEnemy.entity.eyesOffset = (Vector2) {55, 40};
 
     newEnemy.entity.animationFrameSpeed = 0.10f;
     newEnemy.entity.animationFrameWidth = 122;//(float)imageWidth/imageFramesCount;
@@ -237,7 +295,7 @@ Camera2D CreateCamera (Vector2 target, Vector2 offset, float rotation, float zoo
     return newCam;
 }
 
-void UpdatePlayer(Player *player, float delta, Props *props, float minX) {
+void UpdatePlayer(Player *player, Enemy *enemy, float delta, Props *props, float minX) {
     enum CHARACTER_STATE currentState = player->entity.currentAnimationState;
     player->entity.timeSinceLastFrame += delta;
 
@@ -266,6 +324,7 @@ void UpdatePlayer(Player *player, float delta, Props *props, float minX) {
 
         if (IsKeyPressed(KEY_P))
             player->entity.currentHP = 0;
+        
     }
 
     // Collision check
@@ -396,6 +455,9 @@ void UpdatePlayer(Player *player, float delta, Props *props, float minX) {
     if (player->entity.position.x < minX) {
         player->entity.position.x = minX;
     } 
+
+    // Atualizar posição dos olhos
+    //player->entity.eyesOffset.x
 }
 
 void UpdateEnemy(Enemy *enemy, Player *player, float delta, Props *props) {
@@ -405,38 +467,7 @@ void UpdateEnemy(Enemy *enemy, Player *player, float delta, Props *props) {
     enemy->timeSinceLastBehaviorChange += delta;
 
     // Steering behavior
-    {
-    if (enemy->target.x >= 0 && enemy->target.y >= 0) { // Se não tiver target
-        if (enemy->timeSinceLastBehaviorChange >= enemy->behaviorChangeInterval) {
-            enemy->timeSinceLastBehaviorChange = 0;
-            if (enemy->target.x < 0 && enemy->target.y) { // comportamento quando não tem target
-                int random = GetRandomValue(1, 5); // 5 possibilidades
-                if (random <= 1) { // 10%
-                    // Mudar direção
-                    eEnt->isFacingRight *= -1;
-                    eEnt->momentum.x = 0; // Parar
-                    eEnt->velocity.x = 0; // Parar
-                } else { // 80%
-                    random = GetRandomValue(1,5);
-                    // Alguma outra opção?
-                    if (random <= 2) {// 20%
-                        eEnt->momentum.x = 0; // Parar
-                        eEnt->velocity.x = 0; // Parar
-                    } else {
-                        eEnt->momentum.x = 200; // Tem que tunar
-                    }
-                }
-            }
-        }
-    } else { // Se tiver target
-
-    }
-    }
-
-    // TODO Procurar target
-    {
-
-    }
+    RangedSteeringBehavior(enemy, player, delta);
     
     // Colisão
     {   
@@ -485,18 +516,22 @@ void UpdateEnemy(Enemy *enemy, Player *player, float delta, Props *props) {
 
     // Atualização de Estado
     if ((eEnt->currentAnimationState != DYING) && (eEnt->currentAnimationState != HURT)) {
-        if (eEnt->isGrounded) {
-            if (eEnt->velocity.x != 0) {
-                eEnt->currentAnimationState = WALKING;
-            } else {
-                eEnt->currentAnimationState = IDLE;
+        if (eEnt->currentAnimationState != ATTACKING) {
+            if (eEnt->isGrounded) {
+                if (eEnt->velocity.x != 0) {
+                    eEnt->currentAnimationState = WALKING;
+                } else {
+                    eEnt->currentAnimationState = IDLE;
+                }
+            } else if (!eEnt->isGrounded) {
+                if (eEnt->velocity.y < 0) {
+                    eEnt->currentAnimationState = JUMPING;
+                } else if(eEnt->velocity.y > 0) {
+                    eEnt->currentAnimationState = FALLING;
+                }
             }
-        } else if (!eEnt->isGrounded) {
-            if (eEnt->velocity.y < 0) {
-                eEnt->currentAnimationState = JUMPING;
-            } else if(eEnt->velocity.y > 0) {
-                eEnt->currentAnimationState = FALLING;
-            }
+        } else {
+
         }
     }
     
@@ -569,6 +604,17 @@ void UpdateEnemy(Enemy *enemy, Player *player, float delta, Props *props) {
                 eEnt->position.x -= eEnt->isFacingRight*1000*delta;
             }
             if (!eEnt->isGrounded) eEnt->position.x -= eEnt->isFacingRight*1000*delta;
+        }
+        break;
+    case ATTACKING:
+        animRow = 6;
+        if (eEnt->timeSinceLastFrame >= eEnt->animationFrameSpeed) {
+            eEnt->timeSinceLastFrame = 0.0f;
+            eEnt->currentAnimationFrame++;
+            if (eEnt->currentAnimationFrame > 5) { // 5 porque são 6 frames para essa animação, depois muda o estado
+                eEnt->currentAnimationFrame = 0; 
+                eEnt->currentAnimationState = IDLE;
+            }
         }
         break;
     default:
