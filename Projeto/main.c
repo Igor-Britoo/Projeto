@@ -13,7 +13,7 @@ int main(void) {
     Texture2D swordsmanTex = LoadTexture("resources/Atlas/hero_atlas.png");        
 
     // Player Init
-    Player player = CreatePlayer(100, (Vector2){0, 308},characterTex.width, characterTex.height);
+    Player player = CreatePlayer(100, (Vector2){0, 150},characterTex.width, characterTex.height);
 
     // Camera init
     float camMinX = 0; // Usado no avanço da câmera e na limitação de movimentação para trás do player
@@ -32,9 +32,9 @@ int main(void) {
         {{0,430,screenWidth*5,5}, 1, 0, 1}// Floor
         };
 
-
+    // Enemy Init
     Enemy enemies[10];
-    enemies[0] = CreateEnemy(BOSS,500, (Vector2){700, 308},characterTex.width, characterTex.height);
+    enemies[0] = CreateEnemy(BOSS,500, (Vector2){700, 150},characterTex.width, characterTex.height);
 
     // Main game loop
     while (!WindowShouldClose()) {
@@ -49,6 +49,8 @@ int main(void) {
         UpdateBackground(&player, nearBackgroundPool, numBackgroundRendered, deltaTime, &numNearBackground, camMinX, &camMaxX);
         UpdateBackground(&player, middleBackgroundPool, numBackgroundRendered, deltaTime, &numMiddleBackground, camMinX, &camMaxX);
         UpdateBackground(&player, farBackgroundPool, numBackgroundRendered,deltaTime, &numFarBackground, camMinX, &camMaxX);
+
+        UpdateEnemy(&enemies[0], &player, deltaTime, envProps);
 
         // Draw cycle
         BeginDrawing();
@@ -77,15 +79,11 @@ int main(void) {
                 DrawTexturePro(characterTex, player.entity.currentAnimationFrameRect, dstRect, (Vector2) {0, 0}, 0, WHITE);
 
                 // Draw Enemy
-                enemies[0].entity.isFacingRight = 0;
+                
                 charWidth = enemies[0].entity.animationFrameWidth*enemies[0].entity.characterWidthScale;
                 charHeight= enemies[0].entity.animationFrameHeight*enemies[0].entity.characterHeightScale;
                 dstRect = (Rectangle){enemies[0].entity.position.x, enemies[0].entity.position.y, charWidth, charHeight};
                 DrawTexturePro(swordsmanTex, enemies[0].entity.currentAnimationFrameRect, dstRect, (Vector2) {0, 0}, 0, WHITE);
-
-                DrawLine(player.entity.position.x, player.entity.position.y, player.entity.position.x+player.entity.animationFrameWidth, player.entity.position.y+player.entity.animationFrameHeight, RED);
-                DrawLine(enemies[0].entity.position.x, enemies[0].entity.position.y, enemies[0].entity.position.x+enemies[0].entity.animationFrameWidth, enemies[0].entity.position.y+enemies[0].entity.animationFrameHeight, RED);
-
 
                 // Draw props
                 for (int i = 0; i < 1; i++) { // TODO 1 is "props[]"'s size
@@ -101,9 +99,9 @@ int main(void) {
             // Debbug
             char debbugMsg[20];
             //DrawText("Far:", 0, 0, 20, WHITE);
-            sprintf(debbugMsg, "%f", player.entity.position.y);
+            sprintf(debbugMsg, "%f", enemies[0].entity.velocity.x);
             DrawText(debbugMsg, 0, 0, 20, WHITE);
-            sprintf(debbugMsg, "%f", enemies[0].entity.position.y);
+            sprintf(debbugMsg, "%d", enemies[0].entity.velocity.x != 0.00000000000f);
             DrawText(debbugMsg, 0, 25, 20, WHITE);
 
         EndDrawing();
@@ -163,8 +161,10 @@ Player CreatePlayer (int maxHP, Vector2 position, float imageWidth, float imageH
     newPlayer.entity.currentHP = maxHP;
     newPlayer.entity.position.x = position.x;
     newPlayer.entity.position.y = position.y;
-    newPlayer.entity.velocity.x = 0;
-    newPlayer.entity.velocity.y = 0;
+    newPlayer.entity.velocity.x = 0.0f;
+    newPlayer.entity.velocity.y = 0.0f;
+    newPlayer.entity.momentum.x = 0.0f;
+    newPlayer.entity.momentum.y = 0.0f;
     newPlayer.currentWeaponID = -1;
     newPlayer.currentAmmo = 0;
     newPlayer.entity.walkSpeed = 400;
@@ -195,19 +195,23 @@ Enemy CreateEnemy(enum ENEMY_CLASSES class, int maxHP, Vector2 position, float i
     newEnemy.target = (Vector2){-1, -1};
     newEnemy.class = class;
     newEnemy.viewDistance = 150;
+    newEnemy.behaviorChangeInterval = 4; // Tempo em segundos para tentar alterar comportamento
+    newEnemy.timeSinceLastBehaviorChange = 0;
 
     newEnemy.entity.maxHP = maxHP;
     newEnemy.entity.currentHP = maxHP;
     newEnemy.entity.position.x = position.x;
     newEnemy.entity.position.y = position.y;
-    newEnemy.entity.velocity.x = 0;
-    newEnemy.entity.velocity.y = 0;
-    newEnemy.entity.walkSpeed = 300;
+    newEnemy.entity.velocity.x = 0.0f;
+    newEnemy.entity.velocity.y = 0.0f;
+    newEnemy.entity.momentum.x = 0.0f;
+    newEnemy.entity.momentum.y = 0.0f;
+    newEnemy.entity.walkSpeed = 200;
     newEnemy.entity.sprintSpeed = 800;
     newEnemy.entity.jumpSpeed = 250;
     newEnemy.entity.isGrounded = false;
 
-    newEnemy.entity.animationFrameSpeed = 0.08f;
+    newEnemy.entity.animationFrameSpeed = 0.10f;
     newEnemy.entity.animationFrameWidth = 122;//(float)imageWidth/imageFramesCount;
     newEnemy.entity.animationFrameHeight = 122;//imageHeight;
     newEnemy.entity.currentAnimationFrame = 0;
@@ -398,27 +402,44 @@ void UpdateEnemy(Enemy *enemy, Player *player, float delta, Props *props) {
     Entity *eEnt = &(enemy->entity);
     enum CHARACTER_STATE currentState = eEnt->currentAnimationState;
     eEnt->timeSinceLastFrame += delta;
+    enemy->timeSinceLastBehaviorChange += delta;
 
-    if (enemy->target.x < 0 && enemy->target.y) { // comportamento quando não tem target
-        int random = GetRandomValue(1, 5); // 5 possibilidades
-        if (random <= 1) { // 10%
-            // Mudar direção
-            eEnt->isFacingRight = !eEnt->isFacingRight;
-            eEnt->momentum.x = 0; // Parar
-        } else { // 80%
-            random = GetRandomValue(1,5);
-            if (random <= 2) {// 20%
-                // Alguma outra opção?
-                eEnt->momentum.x = 10; // Tem que tunar
-            } else {
-                eEnt->momentum.x = 0; // Parar
+    // Steering behavior
+    {
+    if (enemy->target.x >= 0 && enemy->target.y >= 0) { // Se não tiver target
+        if (enemy->timeSinceLastBehaviorChange >= enemy->behaviorChangeInterval) {
+            enemy->timeSinceLastBehaviorChange = 0;
+            if (enemy->target.x < 0 && enemy->target.y) { // comportamento quando não tem target
+                int random = GetRandomValue(1, 5); // 5 possibilidades
+                if (random <= 1) { // 10%
+                    // Mudar direção
+                    eEnt->isFacingRight *= -1;
+                    eEnt->momentum.x = 0; // Parar
+                    eEnt->velocity.x = 0; // Parar
+                } else { // 80%
+                    random = GetRandomValue(1,5);
+                    // Alguma outra opção?
+                    if (random <= 2) {// 20%
+                        eEnt->momentum.x = 0; // Parar
+                        eEnt->velocity.x = 0; // Parar
+                    } else {
+                        eEnt->momentum.x = 200; // Tem que tunar
+                    }
+                }
             }
         }
+    } else { // Se tiver target
+
+    }
     }
 
     // TODO Procurar target
+    {
 
+    }
+    
     // Colisão
+    {   
     int hitObstacle = 0;
     int hasFloorBelow = 0;
     Rectangle prect = {eEnt->position.x, eEnt->position.y, eEnt->animationFrameWidth, eEnt->animationFrameHeight};
@@ -438,7 +459,7 @@ void UpdateEnemy(Enemy *enemy, Player *player, float delta, Props *props) {
             }
         }
     }
-    
+
     if (!hitObstacle) 
     {
         eEnt->position.y += eEnt->velocity.y * delta;
@@ -451,10 +472,113 @@ void UpdateEnemy(Enemy *enemy, Player *player, float delta, Props *props) {
         eEnt->velocity.y = 0;
         eEnt->isGrounded = true;
     }
+    }
 
     // Atualização da física
     eEnt->velocity.x += eEnt->isFacingRight*eEnt->momentum.x * delta;
-    if (!eEnt->isGrounded) eEnt->velocity.y += GRAVITY * delta;
+    if (eEnt->velocity.x > eEnt->walkSpeed) {
+        eEnt->velocity.x = eEnt->walkSpeed;
+    } else if (eEnt->velocity.x < -eEnt->walkSpeed) {
+        eEnt->velocity.x = -eEnt->walkSpeed;
+    }
+    eEnt->position.x += eEnt->velocity.x * delta;
+
+    // Atualização de Estado
+    if ((eEnt->currentAnimationState != DYING) && (eEnt->currentAnimationState != HURT)) {
+        if (eEnt->isGrounded) {
+            if (eEnt->velocity.x != 0) {
+                eEnt->currentAnimationState = WALKING;
+            } else {
+                eEnt->currentAnimationState = IDLE;
+            }
+        } else if (!eEnt->isGrounded) {
+            if (eEnt->velocity.y < 0) {
+                eEnt->currentAnimationState = JUMPING;
+            } else if(eEnt->velocity.y > 0) {
+                eEnt->currentAnimationState = FALLING;
+            }
+        }
+    }
+    
+    // Atualização de estado quando o inimigo morre
+    if (eEnt->currentHP <= 0 && !(eEnt->currentAnimationState == DYING)) {
+        eEnt->currentAnimationState = DYING;
+    }
+
+    int animRow = 0;
+    
+    if (currentState != eEnt->currentAnimationState) {
+        eEnt->timeSinceLastFrame = 0.0f;
+        eEnt->currentAnimationFrame = 0;
+    }
+    switch (eEnt->currentAnimationState)
+    {
+    case IDLE:
+        animRow = 0;
+        if (eEnt->timeSinceLastFrame >= eEnt->animationFrameSpeed) {
+            eEnt->timeSinceLastFrame = 0.0f;
+            eEnt->currentAnimationFrame++;
+            if (eEnt->currentAnimationFrame > 5) eEnt->currentAnimationFrame = 0; // 5 porque são 6 frames para essa animação 
+        }
+        break;
+    case WALKING:
+        animRow = 1;
+        if (eEnt->timeSinceLastFrame >= eEnt->animationFrameSpeed) {
+            eEnt->timeSinceLastFrame = 0.0f;
+            eEnt->currentAnimationFrame++;
+            if (eEnt->currentAnimationFrame > 7) eEnt->currentAnimationFrame = 0; // 7 porque são 8 frames para essa animação 
+        }
+        break;
+    case HURT:
+        animRow = 2;
+        if (eEnt->timeSinceLastFrame >= eEnt->animationFrameSpeed) {
+            eEnt->timeSinceLastFrame = 0.0f;
+            eEnt->currentAnimationFrame++;
+            if (eEnt->currentAnimationFrame > 5) { // 5 porque são 6 frames para essa animação, depois muda o estado
+                eEnt->currentAnimationFrame = 0; 
+                eEnt->currentAnimationState = IDLE;
+            } else if (eEnt->currentAnimationFrame < 2) {
+                eEnt->position.x -= eEnt->isFacingRight*600*delta;
+            }
+        }
+        break;
+    case JUMPING:
+        animRow = 3;
+        if (eEnt->timeSinceLastFrame >= eEnt->animationFrameSpeed) {
+            eEnt->timeSinceLastFrame = 0.0f;
+            eEnt->currentAnimationFrame++;
+            if (eEnt->currentAnimationFrame > 4) eEnt->currentAnimationFrame = 4; // 4 porque são 5 frames para essa animação, além disso, mantém o frame em "4"
+        }
+        break;
+    case FALLING:
+        animRow = 3;
+        if (eEnt->timeSinceLastFrame >= eEnt->animationFrameSpeed) {
+            eEnt->timeSinceLastFrame = 0.0f;
+            eEnt->currentAnimationFrame++;
+            eEnt->currentAnimationFrame = 5; // Mantém o frame em "4", pois a queda é apenas 1 frame
+        }
+        break;
+    case DYING:
+        animRow = 4;
+        if (eEnt->timeSinceLastFrame >= eEnt->animationFrameSpeed) {
+            eEnt->timeSinceLastFrame = 0.0f;
+            eEnt->currentAnimationFrame++;
+            if (eEnt->currentAnimationFrame > 6) { // 6 porque são 7 frames para essa animação, além disso, mantém o frame em "6"
+                eEnt->currentAnimationFrame = 6; 
+            } else {
+                eEnt->position.x -= eEnt->isFacingRight*1000*delta;
+            }
+            if (!eEnt->isGrounded) eEnt->position.x -= eEnt->isFacingRight*1000*delta;
+        }
+        break;
+    default:
+        break;
+    }
+
+    // Update enemy animation frame Rect
+    eEnt->currentAnimationFrameRect.x = (float)eEnt->currentAnimationFrame * eEnt->animationFrameWidth;
+    eEnt->currentAnimationFrameRect.y = animRow * eEnt->animationFrameHeight;
+    eEnt->currentAnimationFrameRect.width = eEnt->isFacingRight * eEnt->animationFrameWidth;
 
 }
 

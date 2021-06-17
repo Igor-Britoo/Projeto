@@ -60,6 +60,8 @@ typedef struct enemy
     Vector2 target;
     enum ENEMY_CLASSES class;
     int viewDistance;
+    float timeSinceLastBehaviorChange;
+    float behaviorChangeInterval;
 
 } Enemy;
 
