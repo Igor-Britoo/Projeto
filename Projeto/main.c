@@ -21,7 +21,7 @@ int main(void) {
     Camera2D camera = CreateCamera(player.entity.position, (Vector2) {screenWidth/2.0f, screenHeight/2.0f}, 0.0f, 1.00f);
 
     // Environment Init
-    Background nearBackgroundPool[5], middleBackgroundPool[5], farBackgroundPool[5]; // Pool de backgrounds. Sempre que um "sai" da tela, é destruído e um novo é gerado no "final" do mapa
+    Background nearBackgroundPool[3], middleBackgroundPool[3], farBackgroundPool[3]; // Pool de backgrounds. Sempre que um "sai" da tela, é destruído e um novo é gerado no "final" do mapa
     int numNearBackground = 0, numMiddleBackground = 0, numFarBackground = 0; // Usado para posicionamento correto das novas imagens geradas
     for (int i = 0; i < numBackgroundRendered; i++) {
         farBackgroundPool[i] = CreateBackground(&player, farBackgroundPool, BACKGROUND, &numFarBackground, 2.0f);
@@ -29,7 +29,7 @@ int main(void) {
         nearBackgroundPool[i] = CreateBackground(&player, nearBackgroundPool, FOREGROUND, &numNearBackground, 2.0f);
     }
     Props envProps[1] = {
-        {{0,430,screenWidth*5,5}, 1, 0, 1}// Floor
+        {{0,430,screenWidth*3,5}, 1, 0, 1}// Floor
         };
 
     // Enemy Init

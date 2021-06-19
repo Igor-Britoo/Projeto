@@ -17,7 +17,7 @@ enum ENEMY_CLASSES{SWORDSMAN, GUNNER, SNIPER, DRONE, TURRET, BOSS};
 
 // Consts
 const float GRAVITY = 400;
-const static int numBackgroundRendered = 5;
+const static int numBackgroundRendered = 3;
 const int screenWidth = 1600;
 const int screenHeight = 900;
 const char gameName[30] = "Project N30-N";
@@ -239,7 +239,8 @@ void RangedSteeringBehavior(Enemy *enemy, Player *player, float delta) {
     }
 }
 
-void PlayAnimation(Animation *animation, float numOfFrames, bool isLoopable, bool isFixed, int fixedFrame, bool transitToAnotherState, enum CHARACTER_STATE nextState) {
+void PlayAnimation(Entity *entity, float delta, Animation *animation, float numOfFrames, bool isLoopable, bool isFixed, int fixedFrame, bool transitToAnotherState, enum CHARACTER_STATE nextState) {
+// ENTITY E DELTA ESTÃO SENDO USADOS TEMPORARIAMENTE PARA USO DAS ANIMACOES DYING E HURT. DEVERÃO SAIR EM ALGUM MOMENTO
     if (animation->timeSinceLastFrame >= animation->animationFrameSpeed) {
         animation->timeSinceLastFrame = 0.0f;
         animation->currentAnimationFrame++;
@@ -258,7 +259,20 @@ void PlayAnimation(Animation *animation, float numOfFrames, bool isLoopable, boo
                     }
                 }
             }
+        } else {
+            /////////////// A PARTIR DESTE PONTO, O CÓDIGO É TEMPORÁRIO
+            if (animation->currentAnimationState == DYING) {
+                entity->position.x -= animation->isFacingRight*1000*delta;
+            } else if (animation->currentAnimationState == HURT) {
+               if (animation->currentAnimationFrame < 2) {
+                entity->position.x -= animation->isFacingRight*600*delta;
+                }
+            }
         }
+        if (animation->currentAnimationState == DYING)
+            if (!entity->isGrounded) entity->position.x -= animation->isFacingRight*1000*delta;
+
+            /////////////// FIM DO CÓDIGO TEMPORÁRIO
     }
 }
 
@@ -273,44 +287,31 @@ int GetAnimRow (Entity *entity, float delta, enum CHARACTER_STATE currentState) 
     {
     case IDLE:
         animRow = 0;
-        PlayAnimation(animation, 6, true, false, -1, false, IDLE);
+        PlayAnimation(entity, delta, animation, 6, true, false, -1, false, IDLE);
         break;
     case WALKING:
         animRow = 1;
-        PlayAnimation(animation, 8, true, false, -1, false, WALKING);
+        PlayAnimation(entity, delta, animation, 8, true, false, -1, false, WALKING);
         break;
     case HURT:
         animRow = 2;
-        PlayAnimation(animation, 6, false, false, -1, true, IDLE); // Deslocamento não está implementado
-        if (animation->timeSinceLastFrame >= animation->animationFrameSpeed) {
-            if (animation->currentAnimationFrame > 5) { // 5 porque são 6 frames para essa animação, depois muda o estado
-            } else if (animation->currentAnimationFrame < 2) {
-                entity->position.x -= animation->isFacingRight*600*delta;
-            }
-        }
+        PlayAnimation(entity, delta, animation, 6, false, false, -1, true, IDLE);
         break;
     case JUMPING:
         animRow = 3;
-        PlayAnimation(animation, 5, false, false, -1, false, JUMPING);
+        PlayAnimation(entity, delta, animation, 5, false, false, -1, false, JUMPING);
         break;
     case FALLING:
         animRow = 3;
-        PlayAnimation(animation, 5, false, true, 5, false, FALLING);
+        PlayAnimation(entity, delta, animation, 5, false, true, 5, false, FALLING);
         break;
     case DYING:
         animRow = 4;
-        PlayAnimation(animation, 7, false, false, -1, false, DYING); // Deslocamento não está implementado
-        if (animation->timeSinceLastFrame >= animation->animationFrameSpeed) {
-            if (animation->currentAnimationFrame > 6) { // 6 porque são 7 frames para essa animação, além disso, mantém o frame em "6"
-            } else {
-                entity->position.x -= animation->isFacingRight*1000*delta;
-            }
-            if (!entity->isGrounded) entity->position.x -= animation->isFacingRight*1000*delta;
-        }
+        PlayAnimation(entity, delta, animation, 7, false, false, -1, false, DYING);
         break;
     case ATTACKING:
         animRow = 6;
-        PlayAnimation(animation, 6, false, false, -1, true, IDLE); // Deslocamento não está implementado
+        PlayAnimation(entity, delta, animation, 6, false, false, -1, true, IDLE);
     default:
         break;
     }
