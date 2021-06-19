@@ -161,26 +161,30 @@ void AttackTarget(Enemy *enemy) {
     enemy->entity.velocity.x = 0;
 }
 
-void RangedSteeringBehavior(Enemy *enemy, Player *player, float delta) {
+void SteeringBehavior(Enemy *enemy, Player *player, float delta) {
     Entity *eEnt = &(enemy->entity); // Pointer direto para a Entity do inimigo
-
+    Entity *pEnt = &(player->entity); // Pointer direto para a Entity do 
+    
     float eyesX = eEnt->position.x + eEnt->eyesOffset.x;
     float eyesY = eEnt->position.y + eEnt->eyesOffset.y;
+
     Rectangle detectionBox;
+
     if (eEnt->animation.isFacingRight == 1) {
         detectionBox = (Rectangle){eyesX, eyesY, enemy->viewDistance, 5};
     } else {
         detectionBox = (Rectangle){eyesX-enemy->viewDistance, eyesY, enemy->viewDistance, 5};
     }
-    Rectangle playerBox = (Rectangle) {player->entity.position.x, player->entity.position.y, player->entity.animation.animationFrameWidth*player->entity.characterWidthScale, player->entity.animation.animationFrameHeight*player->entity.characterHeightScale};
+
+    Rectangle playerBox = (Rectangle) {pEnt->position.x, pEnt->position.y, pEnt->animation.animationFrameWidth * pEnt->characterWidthScale, pEnt->animation.animationFrameHeight * pEnt->characterHeightScale};
     
     if (CheckCollisionRecs(detectionBox, playerBox)) { // Se houver detecção, setar target
         enemy->noDetectionTime = 0;
         if (enemy->behavior == NONE) { // Se não tiver target
             enemy->behavior = MOVE;
-            SetTarget(player->entity.position, enemy);
+            SetTarget(pEnt->position, enemy);
         } else { // Se já tiver target
-            SetTarget(player->entity.position, enemy); // Atualiza target
+            SetTarget(pEnt->position, enemy); // Atualiza target
             // MOVER OU ATACAR
             float attackX;
             if (eEnt->animation.isFacingRight == 1) { // Direita
@@ -194,7 +198,7 @@ void RangedSteeringBehavior(Enemy *enemy, Player *player, float delta) {
                 }
             } else {
                 attackX = eEnt->position.x - enemy->attackRange;
-                if (attackX > enemy->target.x + player->entity.animation.animationFrameWidth * player->entity.characterWidthScale) { // Ainda não chegou
+                if (attackX > enemy->target.x + pEnt->animation.animationFrameWidth * pEnt->characterWidthScale) { // Ainda não chegou
                     enemy->behavior = MOVE;
                     MoveToTarget(enemy);
                 } else {
@@ -226,7 +230,7 @@ void RangedSteeringBehavior(Enemy *enemy, Player *player, float delta) {
             }
         } else { // Se tem target
             enemy->noDetectionTime += delta;
-            SetTarget(player->entity.position, enemy); // Atualiza target
+            SetTarget(pEnt->position, enemy); // Atualiza target
             if (enemy->noDetectionTime >= enemy->loseTargetInterval) { // Perder target
                 enemy->behavior = NONE;
                 SetTarget((Vector2){-1, -1}, enemy);
@@ -235,7 +239,6 @@ void RangedSteeringBehavior(Enemy *enemy, Player *player, float delta) {
                 MoveToTarget(enemy);
             }
         }
-
     }
 }
 
