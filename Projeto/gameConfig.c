@@ -239,7 +239,7 @@ void RangedSteeringBehavior(Enemy *enemy, Player *player, float delta) {
     }
 }
 
-void UpdateAnimation(Animation *animation, float numOfFrames, bool isLoopable, bool isFixed, int fixedFrame, bool transitToAnotherState, enum CHARACTER_STATE nextState) {
+void PlayAnimation(Animation *animation, float numOfFrames, bool isLoopable, bool isFixed, int fixedFrame, bool transitToAnotherState, enum CHARACTER_STATE nextState) {
     if (animation->timeSinceLastFrame >= animation->animationFrameSpeed) {
         animation->timeSinceLastFrame = 0.0f;
         animation->currentAnimationFrame++;
@@ -273,15 +273,15 @@ int GetAnimRow (Entity *entity, float delta, enum CHARACTER_STATE currentState) 
     {
     case IDLE:
         animRow = 0;
-        UpdateAnimation(animation, 6, true, false, -1, false, IDLE);
+        PlayAnimation(animation, 6, true, false, -1, false, IDLE);
         break;
     case WALKING:
         animRow = 1;
-        UpdateAnimation(animation, 8, true, false, -1, false, WALKING);
+        PlayAnimation(animation, 8, true, false, -1, false, WALKING);
         break;
     case HURT:
         animRow = 2;
-        UpdateAnimation(animation, 6, false, false, -1, true, IDLE); // Deslocamento não está implementado
+        PlayAnimation(animation, 6, false, false, -1, true, IDLE); // Deslocamento não está implementado
         if (animation->timeSinceLastFrame >= animation->animationFrameSpeed) {
             if (animation->currentAnimationFrame > 5) { // 5 porque são 6 frames para essa animação, depois muda o estado
             } else if (animation->currentAnimationFrame < 2) {
@@ -291,15 +291,15 @@ int GetAnimRow (Entity *entity, float delta, enum CHARACTER_STATE currentState) 
         break;
     case JUMPING:
         animRow = 3;
-        UpdateAnimation(animation, 5, false, false, -1, false, JUMPING);
+        PlayAnimation(animation, 5, false, false, -1, false, JUMPING);
         break;
     case FALLING:
         animRow = 3;
-        UpdateAnimation(animation, 5, false, true, 5, false, FALLING);
+        PlayAnimation(animation, 5, false, true, 5, false, FALLING);
         break;
     case DYING:
         animRow = 4;
-        UpdateAnimation(animation, 7, false, false, -1, false, DYING); // Deslocamento não está implementado
+        PlayAnimation(animation, 7, false, false, -1, false, DYING); // Deslocamento não está implementado
         if (animation->timeSinceLastFrame >= animation->animationFrameSpeed) {
             if (animation->currentAnimationFrame > 6) { // 6 porque são 7 frames para essa animação, além disso, mantém o frame em "6"
             } else {
@@ -310,7 +310,7 @@ int GetAnimRow (Entity *entity, float delta, enum CHARACTER_STATE currentState) 
         break;
     case ATTACKING:
         animRow = 6;
-        UpdateAnimation(animation, 6, false, false, -1, true, IDLE); // Deslocamento não está implementado
+        PlayAnimation(animation, 6, false, false, -1, true, IDLE); // Deslocamento não está implementado
     default:
         break;
     }

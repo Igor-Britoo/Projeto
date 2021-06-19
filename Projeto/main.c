@@ -92,7 +92,7 @@ int main(void) {
                 } else {
                     detectionBox = (Rectangle){eyesX-enemies[0].viewDistance, eyesY, enemies[0].viewDistance, 5};
                 }
-                DrawRectangle(detectionBox.x, detectionBox.y, detectionBox.width, detectionBox.height, RED);
+                //DrawRectangle(detectionBox.x, detectionBox.y, detectionBox.width, detectionBox.height, RED);
 
                 // Draw props
                 for (int i = 0; i < 1; i++) { // TODO 1 is "props[]"'s size
