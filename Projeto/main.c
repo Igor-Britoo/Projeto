@@ -34,7 +34,7 @@ int main(void) {
 
     // Enemy Init
     Enemy enemies[10];
-    enemies[0] = CreateEnemy(BOSS,500, (Vector2){700, 150},characterTex.width, characterTex.height);
+    enemies[0] = CreateEnemy(BOSS,500, (Vector2){750, 150},characterTex.width, characterTex.height);
 
     // Main game loop
     while (!WindowShouldClose()) {
@@ -248,8 +248,6 @@ Enemy CreateEnemy(enum ENEMY_CLASSES class, int maxHP, Vector2 position, float i
     newEnemy.target = (Vector2){-1, -1};
     newEnemy.class = class;
     newEnemy.behavior = NONE;
-    newEnemy.viewDistance = 600;
-    newEnemy.attackRange = 200;
     newEnemy.behaviorChangeInterval = 3.5f; // Tempo em segundos para tentar alterar comportamento
     newEnemy.timeSinceLastBehaviorChange = 0;
     newEnemy.noDetectionTime = 0;
@@ -257,8 +255,6 @@ Enemy CreateEnemy(enum ENEMY_CLASSES class, int maxHP, Vector2 position, float i
     newEnemy.spawnLocation = (Vector2){position.x, position.y};
     newEnemy.maxDistanceToSpawn = 1000;
 
-    newEnemy.entity.maxHP = maxHP;
-    newEnemy.entity.currentHP = maxHP;
     newEnemy.entity.position = newEnemy.spawnLocation;
     newEnemy.entity.velocity.x = 0.0f;
     newEnemy.entity.velocity.y = 0.0f;
@@ -283,6 +279,49 @@ Enemy CreateEnemy(enum ENEMY_CLASSES class, int maxHP, Vector2 position, float i
     newEnemy.entity.animation.currentAnimationFrameRect.height = newEnemy.entity.animation.animationFrameHeight;
     newEnemy.entity.characterWidthScale = 1.00f;
     newEnemy.entity.characterHeightScale = 1.00f;
+
+    //Valores para range de ataque e de visão selecionados de forma arbitraria, atualizar posteriormente
+    switch (class){
+        case SWORDSMAN:
+            newEnemy.viewDistance = 600;
+            newEnemy.attackRange = 0;
+            newEnemy.entity.maxHP = maxHP;
+            newEnemy.entity.currentHP = maxHP;
+            break;
+        case GUNNER:
+            newEnemy.viewDistance = 600;
+            newEnemy.attackRange = 200;
+            newEnemy.entity.maxHP = maxHP;
+            newEnemy.entity.currentHP = maxHP;
+            break;
+        case SNIPER:
+            newEnemy.viewDistance = 1000;
+            newEnemy.attackRange = 1000;
+            newEnemy.entity.maxHP = maxHP;
+            newEnemy.entity.currentHP = maxHP;
+            break;
+        case DRONE:
+            newEnemy.viewDistance = 600;
+            newEnemy.attackRange = 200;
+            newEnemy.entity.maxHP = maxHP;
+            newEnemy.entity.currentHP = maxHP;
+            break;
+        case TURRET:
+            newEnemy.viewDistance = 600;
+            newEnemy.attackRange = 200;
+            newEnemy.entity.maxHP = maxHP;
+            newEnemy.entity.currentHP = maxHP;
+            break;
+        case BOSS:
+            newEnemy.viewDistance = 600;
+            newEnemy.attackRange = 200;
+            newEnemy.entity.maxHP = maxHP*2;
+            newEnemy.entity.currentHP = maxHP*2;
+            break;
+        default:
+            break;
+}
+
     return newEnemy;
 }
 
@@ -397,7 +436,7 @@ void UpdateEnemy(Enemy *enemy, Player *player, float delta, Props *props) {
     enemy->timeSinceLastBehaviorChange += delta;
 
     // Steering behavior
-    RangedSteeringBehavior(enemy, player, delta);
+    SteeringBehavior(enemy, player, delta);
     
     // Colisão
     {   
