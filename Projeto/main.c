@@ -108,7 +108,7 @@ int main(void) {
     ////////////////////////////////////////////////// INÍCIO DE DEBBUG //////////////////////////////////////////////////
     /*
     char state[30];
-    switch (enemies[0].entity.animation.currentAnimationState) {
+    switch (player.entity.animation.currentAnimationState) {
     case IDLE:
         strcpy(state, "ANIMATION STATE: IDLE");
         break;
@@ -142,17 +142,17 @@ int main(void) {
     default:
         break;
     }
-    DrawText(state, 0, 625, 20, RED);
+    //DrawText(state, 0, 625, 20, RED);
 
     sprintf(state, "%f", enemies[0].entity.position.x);
-    DrawText("ePx:", 0, 650, 20, RED);
-    DrawText(state, 100, 650, 20, RED);
+    //DrawText("ePx:", 0, 650, 20, RED);
+    //DrawText(state, 100, 650, 20, RED);
     sprintf(state, "%f", enemies[0].target.x);
-    DrawText("tPx", 0, 675, 20, RED);
-    DrawText(state, 100, 675, 20, RED);
+    //DrawText("tPx", 0, 675, 20, RED);
+    //DrawText(state, 100, 675, 20, RED);
     sprintf(state, "%f", enemies[0].noDetectionTime);
-    DrawText("nDT:", 0, 700, 20, RED);
-    DrawText(state, 100, 700, 20, RED);
+    //DrawText("nDT:", 0, 700, 20, RED);
+    //DrawText(state, 100, 700, 20, RED);
 */
     ////////////////////////////////////////////////// FIM DE DEBBUG //////////////////////////////////////////////////
 
@@ -180,19 +180,19 @@ Background CreateBackground(Player *player, Background *backgroundPool, enum BAC
         dstBackground.width = 512*scale;
         dstBackground.height = 192*scale;
         dstBackground.position.y = 20;
-        dstBackground.relativePosition = -0.05f; // Velocidade do parallax (quando menor, mais lento)
+        dstBackground.relativePosition = -0.05f; // Velocidade do parallax (quanto menor, mais lento)
         break;
     case MIDDLEGROUND:
         dstBackground.width = 512*scale;
         dstBackground.height = 192*scale;
         dstBackground.position.y = 20;
-        dstBackground.relativePosition = -0.025f; // Velocidade do parallax (quando menor, mais lento)
+        dstBackground.relativePosition = -0.025f; // Velocidade do parallax (quanto menor, mais lento)
         break;
     case FOREGROUND:
         dstBackground.width = 704*scale;
         dstBackground.height = 192*scale;
         dstBackground.position.y = 70;
-        dstBackground.relativePosition = 0.0f; // Velocidade do parallax (quando menor, mais lento)
+        dstBackground.relativePosition = 0.0f; // Velocidade do parallax (quanto menor, mais lento)
         break;
     default:
         break;
@@ -219,7 +219,7 @@ Player CreatePlayer (int maxHP, Vector2 position, float imageWidth, float imageH
     newPlayer.entity.momentum.y = 0.0f;
     newPlayer.currentWeaponID = -1;
     newPlayer.currentAmmo = 0;
-    newPlayer.entity.walkSpeed = 400;
+    newPlayer.entity.maxXSpeed = 400;
     newPlayer.entity.sprintSpeed = 800;
     newPlayer.entity.jumpSpeed = 250;
     newPlayer.entity.isGrounded = true;
@@ -260,7 +260,7 @@ Enemy CreateEnemy(enum ENEMY_CLASSES class, int maxHP, Vector2 position, float i
     newEnemy.entity.velocity.y = 0.0f;
     newEnemy.entity.momentum.x = 0.0f;
     newEnemy.entity.momentum.y = 0.0f;
-    newEnemy.entity.walkSpeed = 200;
+    newEnemy.entity.maxXSpeed = 200;
     newEnemy.entity.sprintSpeed = 800;
     newEnemy.entity.jumpSpeed = 250;
     newEnemy.entity.isGrounded = false;
@@ -339,18 +339,19 @@ void UpdatePlayer(Player *player, Enemy *enemy, float delta, Props *props, float
     enum CHARACTER_STATE currentState = player->entity.animation.currentAnimationState;
     player->entity.animation.timeSinceLastFrame += delta;
 
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    // Handler de input do player                                     ///////////////////////////////////////////////////////////////////////
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     if (player->entity.animation.currentAnimationState != DYING && player->entity.animation.currentAnimationState != HURT) {
         if (IsKeyDown(KEY_LEFT)) {
-            player->entity.position.x -= player->entity.walkSpeed*delta;
-            player->entity.animation.isFacingRight = -1;
-            player->entity.animation.currentAnimationState = WALKING;
+            player->entity.velocity.x -= player->entity.maxXSpeed;
+            //player->entity.animation.isFacingRight = -1;
             
         } else if (IsKeyDown(KEY_RIGHT)) {
-            player->entity.position.x += player->entity.walkSpeed*delta;
-            player->entity.animation.isFacingRight = 1;
-            player->entity.animation.currentAnimationState = WALKING;
+            player->entity.velocity.x += player->entity.maxXSpeed;
+            //player->entity.animation.isFacingRight = 1;
         } else {
-            player->entity.animation.currentAnimationState = IDLE;
+            player->entity.velocity.x = 0;
         }
 
         if (IsKeyDown(KEY_SPACE) && player->entity.isGrounded) 
@@ -364,64 +365,17 @@ void UpdatePlayer(Player *player, Enemy *enemy, float delta, Props *props, float
 
         if (IsKeyPressed(KEY_P))
             player->entity.currentHP = 0;
-        
     }
 
-    // Collision check
-    int hitObstacle = 0;
-    int hasFloorBelow = 0;
-    Rectangle prect = {player->entity.position.x, player->entity.position.y, player->entity.animation.animationFrameWidth, player->entity.animation.animationFrameHeight};
-    Rectangle prectGrav = {player->entity.position.x, player->entity.position.y+1, player->entity.animation.animationFrameWidth, player->entity.animation.animationFrameHeight};
-    for (int i = 0; i < 1; i++)  // TODO 1 is "props[]"'s size
-    {
-        Props *eprop = props + i;
-        Vector2 *p = &(player->entity.position);
-        if (eprop->canBeStepped) {
-            if (CheckCollisionRecs(eprop->rect, prect)) {
-                hitObstacle = 1;
-                player->entity.velocity.y = 0.0f;
-                p->y = eprop->rect.y - player->entity.animation.animationFrameHeight;
-            }
-            if (CheckCollisionRecs(eprop->rect, prectGrav)) {
-                hasFloorBelow = 1;
-            }
-        }
-    }
-    
-    if (!hitObstacle) 
-    {
-        player->entity.position.y += player->entity.velocity.y * delta;
-        player->entity.velocity.y += GRAVITY * delta;
-        player->entity.isGrounded = false;
-    } 
-    else player->entity.isGrounded = true;
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    // Handler de colisão do player                                   ///////////////////////////////////////////////////////////////////////
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    CollisionHandler(&(player->entity), props, delta);
 
-    if (hasFloorBelow) {
-        player->entity.velocity.y = 0;
-        player->entity.isGrounded = true;
-    }
-
-    // Animation handlers
-    if ((player->entity.animation.currentAnimationState != DYING) && (player->entity.animation.currentAnimationState != HURT)) {
-        if (!player->entity.isGrounded) {
-            if (player->entity.velocity.y < 0) {
-                player->entity.animation.currentAnimationState = JUMPING;
-            } else if(player->entity.velocity.y > 0) {
-                player->entity.animation.currentAnimationState = FALLING;
-            }
-        }
-    }
-
-    // Atualização de estado quando o player morre
-    if (player->entity.currentHP <= 0 && !(player->entity.animation.currentAnimationState == DYING)) {
-        player->entity.animation.currentAnimationState = DYING;
-    }
-
-    // Update player animation frame Rect
-    int animRow = GetAnimRow(&(player->entity), delta, currentState);
-    player->entity.animation.currentAnimationFrameRect.x = (float)player->entity.animation.currentAnimationFrame * player->entity.animation.animationFrameWidth;
-    player->entity.animation.currentAnimationFrameRect.y = animRow * player->entity.animation.animationFrameHeight;
-    player->entity.animation.currentAnimationFrameRect.width = player->entity.animation.isFacingRight * player->entity.animation.animationFrameWidth;
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    // Handler de física e gráfico do player                          ///////////////////////////////////////////////////////////////////////
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    PhysicsAndGraphicsHandlers(&(player->entity), delta, currentState);
 
     // Limitar posição do player de acordo com o avanço da câmera
     if (player->entity.position.x < minX) {
@@ -435,86 +389,20 @@ void UpdateEnemy(Enemy *enemy, Player *player, float delta, Props *props) {
     eEnt->animation.timeSinceLastFrame += delta;
     enemy->timeSinceLastBehaviorChange += delta;
 
-    // Steering behavior
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    // Handler de comportamento do enemy                              ///////////////////////////////////////////////////////////////////////
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     SteeringBehavior(enemy, player, delta);
     
-    // Colisão
-    {   
-    int hitObstacle = 0;
-    int hasFloorBelow = 0;
-    Rectangle prect = {eEnt->position.x, eEnt->position.y, eEnt->animation.animationFrameWidth, eEnt->animation.animationFrameHeight};
-    Rectangle prectGrav = {eEnt->position.x, eEnt->position.y+1, eEnt->animation.animationFrameWidth, eEnt->animation.animationFrameHeight};
-    for (int i = 0; i < 1; i++)  // TODO 1 is "props[]"'s size
-    {
-        Props *eprop = props + i;
-        Vector2 *p = &(eEnt->position);
-        if (eprop->canBeStepped) {
-            if (CheckCollisionRecs(eprop->rect, prect)) {
-                hitObstacle = 1;
-                eEnt->velocity.y = 0.0f;
-                p->y = eprop->rect.y - eEnt->animation.animationFrameHeight;
-            }
-            if (CheckCollisionRecs(eprop->rect, prectGrav)) {
-                hasFloorBelow = 1;
-            }
-        }
-    }
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    // Handler de colisão do enemy                                    ///////////////////////////////////////////////////////////////////////
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    CollisionHandler(&(enemy->entity), props, delta);
 
-    if (!hitObstacle) 
-    {
-        eEnt->position.y += eEnt->velocity.y * delta;
-        eEnt->velocity.y += GRAVITY * delta;
-        eEnt->isGrounded = false;
-    } 
-    else eEnt->isGrounded = true;
-
-    if (hasFloorBelow) {
-        eEnt->velocity.y = 0;
-        eEnt->isGrounded = true;
-    }
-    }
-
-    // Atualização da física
-    eEnt->velocity.x += eEnt->animation.isFacingRight*eEnt->momentum.x * delta;
-    if (eEnt->velocity.x > eEnt->walkSpeed) {
-        eEnt->velocity.x = eEnt->walkSpeed;
-    } else if (eEnt->velocity.x < -eEnt->walkSpeed) {
-        eEnt->velocity.x = -eEnt->walkSpeed;
-    }
-    eEnt->position.x += eEnt->velocity.x * delta;
-
-    // Atualização de Estado
-    if ((eEnt->animation.currentAnimationState != DYING) && (eEnt->animation.currentAnimationState != HURT)) {
-        if (eEnt->animation.currentAnimationState != ATTACKING) {
-            if (eEnt->isGrounded) {
-                if (eEnt->velocity.x != 0) {
-                    eEnt->animation.currentAnimationState = WALKING;
-                } else {
-                    eEnt->animation.currentAnimationState = IDLE;
-                }
-            } else if (!eEnt->isGrounded) {
-                if (eEnt->velocity.y < 0) {
-                    eEnt->animation.currentAnimationState = JUMPING;
-                } else if(eEnt->velocity.y > 0) {
-                    eEnt->animation.currentAnimationState = FALLING;
-                }
-            }
-        } else {
-
-        }
-    }
-    
-    // Atualização de estado quando o inimigo morre
-    if (eEnt->currentHP <= 0 && !(eEnt->animation.currentAnimationState == DYING)) {
-        eEnt->animation.currentAnimationState = DYING;
-    }
-
-    // Update enemy animation frame Rect
-    int animRow = GetAnimRow(eEnt, delta, currentState);
-    eEnt->animation.currentAnimationFrameRect.x = (float)eEnt->animation.currentAnimationFrame * eEnt->animation.animationFrameWidth;
-    eEnt->animation.currentAnimationFrameRect.y = animRow * eEnt->animation.animationFrameHeight;
-    eEnt->animation.currentAnimationFrameRect.width = eEnt->animation.isFacingRight * eEnt->animation.animationFrameWidth;
-
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    // Handler de física e gráfico do enemy                           ///////////////////////////////////////////////////////////////////////
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    PhysicsAndGraphicsHandlers(&(enemy->entity), delta, currentState);
 }
 
 void UpdateClampedCameraPlayer(Camera2D *camera, Player *player, Props *props, float delta, int width, int height, float *minX, float maxX) {

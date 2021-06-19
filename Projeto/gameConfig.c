@@ -42,7 +42,7 @@ typedef struct entity {
     Vector2 position;
     Vector2 velocity;
     Vector2 momentum;
-    float walkSpeed;
+    float maxXSpeed;
     float sprintSpeed;
     float jumpSpeed;
     bool isGrounded;
@@ -163,7 +163,7 @@ void AttackTarget(Enemy *enemy) {
 
 void SteeringBehavior(Enemy *enemy, Player *player, float delta) {
     Entity *eEnt = &(enemy->entity); // Pointer direto para a Entity do inimigo
-    Entity *pEnt = &(player->entity); // Pointer direto para a Entity do 
+    Entity *pEnt = &(player->entity); // Pointer direto para a Entity do player
     
     float eyesX = eEnt->position.x + eEnt->eyesOffset.x;
     float eyesY = eEnt->position.y + eEnt->eyesOffset.y;
@@ -279,8 +279,54 @@ void PlayAnimation(Entity *entity, float delta, Animation *animation, float numO
     }
 }
 
-int GetAnimRow (Entity *entity, float delta, enum CHARACTER_STATE currentState) {
+void PhysicsAndGraphicsHandlers (Entity *entity, float delta, enum CHARACTER_STATE currentState) {
     Animation *animation = &(entity->animation);
+
+    // Atualização da física
+    entity->velocity.x += entity->animation.isFacingRight*entity->momentum.x * delta;
+    if (entity->velocity.x > entity->maxXSpeed) {
+        entity->velocity.x = entity->maxXSpeed;
+    } else if (entity->velocity.x < -entity->maxXSpeed) {
+        entity->velocity.x = -entity->maxXSpeed;
+    }
+    if (entity->velocity.x > 0) {
+        entity->animation.isFacingRight = 1;
+    } else if (entity->velocity.x < 0) {
+        entity->animation.isFacingRight = -1;
+    }
+
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    // Atualização de estado para controle da animação da entity        /////////////////////////////////////////////////////////////////////
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    // Estados relacionados a movimentação
+    if ((entity->animation.currentAnimationState != DYING) && (entity->animation.currentAnimationState != HURT)) {
+        entity->position.x += entity->velocity.x * delta;
+        if (entity->animation.currentAnimationState != ATTACKING) {
+            if (entity->isGrounded) {
+                if (entity->velocity.x != 0) {
+                    entity->animation.currentAnimationState = WALKING;
+                } else {
+                    entity->animation.currentAnimationState = IDLE;
+                }
+            } else if (!entity->isGrounded) {
+                if (entity->velocity.y < 0) {
+                    entity->animation.currentAnimationState = JUMPING;
+                } else if(entity->velocity.y > 0) {
+                    entity->animation.currentAnimationState = FALLING;
+                }
+            }
+        } else {
+
+        }
+    } else {
+        
+    }
+    
+    // Atualização de estado quando o inimigo morre
+    if (entity->currentHP <= 0 && !(entity->animation.currentAnimationState == DYING)) {
+        entity->animation.currentAnimationState = DYING;
+    }
+
     int animRow = 0;
     if (currentState != animation->currentAnimationState) {
         animation->timeSinceLastFrame = 0.0f;
@@ -319,5 +365,44 @@ int GetAnimRow (Entity *entity, float delta, enum CHARACTER_STATE currentState) 
         break;
     }
 
-    return animRow;
+    entity->animation.currentAnimationFrameRect.x = (float)entity->animation.currentAnimationFrame * entity->animation.animationFrameWidth;
+    entity->animation.currentAnimationFrameRect.y = animRow * entity->animation.animationFrameHeight;
+    entity->animation.currentAnimationFrameRect.width = entity->animation.isFacingRight * entity->animation.animationFrameWidth;
+}
+
+void CollisionHandler(Entity *entity, Props *props, float delta) {
+    // Colisão com props                                            ///////////////////////////////////////////////////////////////////////
+    int hitObstacle = 0;
+    int hasFloorBelow = 0;
+    Rectangle prect = {entity->position.x, entity->position.y, entity->animation.animationFrameWidth, entity->animation.animationFrameHeight};
+    Rectangle prectGrav = {entity->position.x, entity->position.y+1, entity->animation.animationFrameWidth, entity->animation.animationFrameHeight};
+    for (int i = 0; i < 1; i++)  // TODO 1 is "props[]"'s size
+    {
+        Props *eprop = props + i;
+        Vector2 *p = &(entity->position);
+        if (eprop->canBeStepped) {
+            if (CheckCollisionRecs(eprop->rect, prect)) {
+                hitObstacle = 1;
+                entity->velocity.y = 0.0f;
+                p->y = eprop->rect.y - entity->animation.animationFrameHeight;
+            }
+            if (CheckCollisionRecs(eprop->rect, prectGrav)) {
+                hasFloorBelow = 1;
+            }
+        }
+    }
+    
+    // Verifica se tem props abaixo para controle da gravidade      ///////////////////////////////////////////////////////////////////////
+    if (!hitObstacle) 
+    {
+        entity->position.y += entity->velocity.y * delta;
+        entity->velocity.y += GRAVITY * delta;
+        entity->isGrounded = false;
+    } 
+    else entity->isGrounded = true;
+
+    if (hasFloorBelow) {
+        entity->velocity.y = 0;
+        entity->isGrounded = true;
+    }
 }
