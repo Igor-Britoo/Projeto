@@ -24,6 +24,18 @@ const char gameName[30] = "Project N30-N";
 bool isFullscreen = 0;
 
 // Structs
+typedef struct animation {
+    enum CHARACTER_STATE currentAnimationState;
+    Rectangle currentAnimationFrameRect;
+    int isFacingRight;
+    float animationFrameSpeed;
+    int animationFrameWidth;
+    int animationFrameHeight;
+    int currentAnimationFrame;
+    float timeSinceLastFrame;
+
+} Animation;
+
 typedef struct entity {
     int maxHP;
     int currentHP;
@@ -35,18 +47,10 @@ typedef struct entity {
     float jumpSpeed;
     bool isGrounded;
     Vector2 eyesOffset;
-
-    // Animation
-    enum CHARACTER_STATE currentAnimationState;
-    Rectangle currentAnimationFrameRect;
-    int isFacingRight;
-    float animationFrameSpeed;
-    int animationFrameWidth;
-    int animationFrameHeight;
-    int currentAnimationFrame;
-    float timeSinceLastFrame;
     float characterWidthScale;
     float characterHeightScale;
+    Animation animation;
+
 } Entity;
 
 typedef struct player
@@ -81,6 +85,7 @@ typedef struct props {
     int isInvisible;
 
 } Props;
+
 
 typedef struct background {
     enum BACKGROUND_TYPES bgType;
@@ -127,7 +132,7 @@ void UpdateEnemy(Enemy *enemy, Player *player, float delta, Props *props);
 void UpdateProps(Player *player, Props *props, float delta, float minX);
 
 void TurnAround(Entity *ent) {
-    ent->isFacingRight *= -1;
+    ent->animation.isFacingRight *= -1;
 }
 
 void SetTarget(Vector2 target, Enemy *enemy) {
@@ -137,9 +142,9 @@ void SetTarget(Vector2 target, Enemy *enemy) {
 
 void LookAtTarget(Enemy *enemy) {
     if (enemy->entity.position.x >= enemy->target.x) { //
-        if (enemy->entity.isFacingRight == 1) TurnAround(&(enemy->entity));
+        if (enemy->entity.animation.isFacingRight == 1) TurnAround(&(enemy->entity));
     } else {
-        if (enemy->entity.isFacingRight == -1) TurnAround(&(enemy->entity));
+        if (enemy->entity.animation.isFacingRight == -1) TurnAround(&(enemy->entity));
     }
 }
 
@@ -151,7 +156,7 @@ void MoveToTarget(Enemy *enemy) {
 void AttackTarget(Enemy *enemy) {
     // Atualizar estado
     LookAtTarget(enemy);
-    enemy->entity.currentAnimationState = ATTACKING;
+    enemy->entity.animation.currentAnimationState = ATTACKING;
     enemy->entity.momentum.x = 0;
     enemy->entity.velocity.x = 0;
 }
@@ -162,12 +167,12 @@ void RangedSteeringBehavior(Enemy *enemy, Player *player, float delta) {
     float eyesX = eEnt->position.x + eEnt->eyesOffset.x;
     float eyesY = eEnt->position.y + eEnt->eyesOffset.y;
     Rectangle detectionBox;
-    if (eEnt->isFacingRight == 1) {
+    if (eEnt->animation.isFacingRight == 1) {
         detectionBox = (Rectangle){eyesX, eyesY, enemy->viewDistance, 5};
     } else {
         detectionBox = (Rectangle){eyesX-enemy->viewDistance, eyesY, enemy->viewDistance, 5};
     }
-    Rectangle playerBox = (Rectangle) {player->entity.position.x, player->entity.position.y, player->entity.animationFrameWidth*player->entity.characterWidthScale, player->entity.animationFrameHeight*player->entity.characterHeightScale};
+    Rectangle playerBox = (Rectangle) {player->entity.position.x, player->entity.position.y, player->entity.animation.animationFrameWidth*player->entity.characterWidthScale, player->entity.animation.animationFrameHeight*player->entity.characterHeightScale};
     
     if (CheckCollisionRecs(detectionBox, playerBox)) { // Se houver detecção, setar target
         enemy->noDetectionTime = 0;
@@ -178,8 +183,8 @@ void RangedSteeringBehavior(Enemy *enemy, Player *player, float delta) {
             SetTarget(player->entity.position, enemy); // Atualiza target
             // MOVER OU ATACAR
             float attackX;
-            if (eEnt->isFacingRight == 1) { // Direita
-                attackX = eEnt->position.x + eEnt->animationFrameWidth * eEnt->characterWidthScale + enemy->attackRange;
+            if (eEnt->animation.isFacingRight == 1) { // Direita
+                attackX = eEnt->position.x + eEnt->animation.animationFrameWidth * eEnt->characterWidthScale + enemy->attackRange;
                 if (attackX < enemy->target.x) { // Ainda não chegou
                     enemy->behavior = MOVE;
                     MoveToTarget(enemy);
@@ -189,7 +194,7 @@ void RangedSteeringBehavior(Enemy *enemy, Player *player, float delta) {
                 }
             } else {
                 attackX = eEnt->position.x - enemy->attackRange;
-                if (attackX > enemy->target.x + player->entity.animationFrameWidth * player->entity.characterWidthScale) { // Ainda não chegou
+                if (attackX > enemy->target.x + player->entity.animation.animationFrameWidth * player->entity.characterWidthScale) { // Ainda não chegou
                     enemy->behavior = MOVE;
                     MoveToTarget(enemy);
                 } else {
@@ -232,4 +237,83 @@ void RangedSteeringBehavior(Enemy *enemy, Player *player, float delta) {
         }
 
     }
+}
+
+void UpdateAnimation(Animation *animation, float numOfFrames, bool isLoopable, bool isFixed, int fixedFrame, bool transitToAnotherState, enum CHARACTER_STATE nextState) {
+    if (animation->timeSinceLastFrame >= animation->animationFrameSpeed) {
+        animation->timeSinceLastFrame = 0.0f;
+        animation->currentAnimationFrame++;
+        if (animation->currentAnimationFrame > numOfFrames-1) { 
+            if (isLoopable) {
+                animation->currentAnimationFrame = 0; 
+            } else {
+                if (isFixed) {
+                    animation->currentAnimationFrame = fixedFrame; 
+                } else {
+                    if (transitToAnotherState) {
+                        animation->currentAnimationFrame = 0;
+                        animation->currentAnimationState = nextState;
+                    } else {
+                        animation->currentAnimationFrame = numOfFrames-1; 
+                    }
+                }
+            }
+        }
+    }
+}
+
+int GetAnimRow (Entity *entity, float delta, enum CHARACTER_STATE currentState) {
+    Animation *animation = &(entity->animation);
+    int animRow = 0;
+    if (currentState != animation->currentAnimationState) {
+        animation->timeSinceLastFrame = 0.0f;
+        animation->currentAnimationFrame = 0;
+    }
+    switch (animation->currentAnimationState)
+    {
+    case IDLE:
+        animRow = 0;
+        UpdateAnimation(animation, 6, true, false, -1, false, IDLE);
+        break;
+    case WALKING:
+        animRow = 1;
+        UpdateAnimation(animation, 8, true, false, -1, false, WALKING);
+        break;
+    case HURT:
+        animRow = 2;
+        UpdateAnimation(animation, 6, false, false, -1, true, IDLE); // Deslocamento não está implementado
+        if (animation->timeSinceLastFrame >= animation->animationFrameSpeed) {
+            if (animation->currentAnimationFrame > 5) { // 5 porque são 6 frames para essa animação, depois muda o estado
+            } else if (animation->currentAnimationFrame < 2) {
+                entity->position.x -= animation->isFacingRight*600*delta;
+            }
+        }
+        break;
+    case JUMPING:
+        animRow = 3;
+        UpdateAnimation(animation, 5, false, false, -1, false, JUMPING);
+        break;
+    case FALLING:
+        animRow = 3;
+        UpdateAnimation(animation, 5, false, true, 5, false, FALLING);
+        break;
+    case DYING:
+        animRow = 4;
+        UpdateAnimation(animation, 7, false, false, -1, false, DYING); // Deslocamento não está implementado
+        if (animation->timeSinceLastFrame >= animation->animationFrameSpeed) {
+            if (animation->currentAnimationFrame > 6) { // 6 porque são 7 frames para essa animação, além disso, mantém o frame em "6"
+            } else {
+                entity->position.x -= animation->isFacingRight*1000*delta;
+            }
+            if (!entity->isGrounded) entity->position.x -= animation->isFacingRight*1000*delta;
+        }
+        break;
+    case ATTACKING:
+        animRow = 6;
+        UpdateAnimation(animation, 6, false, false, -1, true, IDLE); // Deslocamento não está implementado
+    default:
+        break;
+    }
+
+    return animRow;
 }

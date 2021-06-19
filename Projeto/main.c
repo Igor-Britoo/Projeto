@@ -73,21 +73,21 @@ int main(void) {
                 }       
 
                 // Draw player
-                float charWidth = player.entity.animationFrameWidth*player.entity.characterWidthScale;
-                float charHeight= player.entity.animationFrameHeight*player.entity.characterHeightScale;
+                float charWidth = player.entity.animation.animationFrameWidth*player.entity.characterWidthScale;
+                float charHeight= player.entity.animation.animationFrameHeight*player.entity.characterHeightScale;
                 Rectangle dstRect = {player.entity.position.x, player.entity.position.y, charWidth, charHeight};
-                DrawTexturePro(characterTex, player.entity.currentAnimationFrameRect, dstRect, (Vector2) {0, 0}, 0, WHITE);
+                DrawTexturePro(characterTex, player.entity.animation.currentAnimationFrameRect, dstRect, (Vector2) {0, 0}, 0, WHITE);
 
                 // Draw Enemy
-                charWidth = enemies[0].entity.animationFrameWidth*enemies[0].entity.characterWidthScale;
-                charHeight= enemies[0].entity.animationFrameHeight*enemies[0].entity.characterHeightScale;
+                charWidth = enemies[0].entity.animation.animationFrameWidth*enemies[0].entity.characterWidthScale;
+                charHeight= enemies[0].entity.animation.animationFrameHeight*enemies[0].entity.characterHeightScale;
                 dstRect = (Rectangle){enemies[0].entity.position.x, enemies[0].entity.position.y, charWidth, charHeight};
-                DrawTexturePro(swordsmanTex, enemies[0].entity.currentAnimationFrameRect, dstRect, (Vector2) {0, 0}, 0, WHITE);
+                DrawTexturePro(swordsmanTex, enemies[0].entity.animation.currentAnimationFrameRect, dstRect, (Vector2) {0, 0}, 0, WHITE);
                 
                 float eyesX = enemies[0].entity.position.x + enemies[0].entity.eyesOffset.x;
                 float eyesY = enemies[0].entity.position.y + enemies[0].entity.eyesOffset.y;
                 Rectangle detectionBox;
-                if (enemies[0].entity.isFacingRight == 1) {
+                if (enemies[0].entity.animation.isFacingRight == 1) {
                     detectionBox = (Rectangle){eyesX, eyesY, enemies[0].viewDistance, 5};
                 } else {
                     detectionBox = (Rectangle){eyesX-enemies[0].viewDistance, eyesY, enemies[0].viewDistance, 5};
@@ -105,9 +105,10 @@ int main(void) {
 
             // TODO o que está nessa região fica "parado" em relação à câmera
 
-    ////////////////////////////////////////////////// FIM DE DEBBUG //////////////////////////////////////////////////
+    ////////////////////////////////////////////////// INÍCIO DE DEBBUG //////////////////////////////////////////////////
+    /*
     char state[30];
-    switch (enemies[0].entity.currentAnimationState) {
+    switch (enemies[0].entity.animation.currentAnimationState) {
     case IDLE:
         strcpy(state, "ANIMATION STATE: IDLE");
         break;
@@ -152,7 +153,7 @@ int main(void) {
     sprintf(state, "%f", enemies[0].noDetectionTime);
     DrawText("nDT:", 0, 700, 20, RED);
     DrawText(state, 100, 700, 20, RED);
-
+*/
     ////////////////////////////////////////////////// FIM DE DEBBUG //////////////////////////////////////////////////
 
         EndDrawing();
@@ -224,17 +225,17 @@ Player CreatePlayer (int maxHP, Vector2 position, float imageWidth, float imageH
     newPlayer.entity.isGrounded = true;
     newPlayer.entity.eyesOffset = (Vector2) {55, 40};
 
-    newPlayer.entity.animationFrameSpeed = 0.08f;
-    newPlayer.entity.animationFrameWidth = 122;//(float)imageWidth/imageFramesCount;
-    newPlayer.entity.animationFrameHeight = 122;//imageHeight;
-    newPlayer.entity.currentAnimationFrame = 0;
-    newPlayer.entity.currentAnimationState = IDLE;
-    newPlayer.entity.isFacingRight = 1;
-    newPlayer.entity.timeSinceLastFrame = 0;
-    newPlayer.entity.currentAnimationFrameRect.x = 0.0f;
-    newPlayer.entity.currentAnimationFrameRect.y = 0.0f;
-    newPlayer.entity.currentAnimationFrameRect.width = newPlayer.entity.animationFrameWidth;
-    newPlayer.entity.currentAnimationFrameRect.height = newPlayer.entity.animationFrameHeight;
+    newPlayer.entity.animation.animationFrameSpeed = 0.08f;
+    newPlayer.entity.animation.animationFrameWidth = 122;//(float)imageWidth/imageFramesCount;
+    newPlayer.entity.animation.animationFrameHeight = 122;//imageHeight;
+    newPlayer.entity.animation.currentAnimationFrame = 0;
+    newPlayer.entity.animation.currentAnimationState = IDLE;
+    newPlayer.entity.animation.isFacingRight = 1;
+    newPlayer.entity.animation.timeSinceLastFrame = 0;
+    newPlayer.entity.animation.currentAnimationFrameRect.x = 0.0f;
+    newPlayer.entity.animation.currentAnimationFrameRect.y = 0.0f;
+    newPlayer.entity.animation.currentAnimationFrameRect.width = newPlayer.entity.animation.animationFrameWidth;
+    newPlayer.entity.animation.currentAnimationFrameRect.height = newPlayer.entity.animation.animationFrameHeight;
     newPlayer.entity.characterWidthScale = 1.00f;
     newPlayer.entity.characterHeightScale = 1.00f;
 
@@ -269,17 +270,17 @@ Enemy CreateEnemy(enum ENEMY_CLASSES class, int maxHP, Vector2 position, float i
     newEnemy.entity.isGrounded = false;
     newEnemy.entity.eyesOffset = (Vector2) {55, 40};
 
-    newEnemy.entity.animationFrameSpeed = 0.10f;
-    newEnemy.entity.animationFrameWidth = 122;//(float)imageWidth/imageFramesCount;
-    newEnemy.entity.animationFrameHeight = 122;//imageHeight;
-    newEnemy.entity.currentAnimationFrame = 0;
-    newEnemy.entity.currentAnimationState = IDLE;
-    newEnemy.entity.isFacingRight = 1;
-    newEnemy.entity.timeSinceLastFrame = 0;
-    newEnemy.entity.currentAnimationFrameRect.x = 0.0f;
-    newEnemy.entity.currentAnimationFrameRect.y = 0.0f;
-    newEnemy.entity.currentAnimationFrameRect.width = newEnemy.entity.animationFrameWidth;
-    newEnemy.entity.currentAnimationFrameRect.height = newEnemy.entity.animationFrameHeight;
+    newEnemy.entity.animation.animationFrameSpeed = 0.10f;
+    newEnemy.entity.animation.animationFrameWidth = 122;//(float)imageWidth/imageFramesCount;
+    newEnemy.entity.animation.animationFrameHeight = 122;//imageHeight;
+    newEnemy.entity.animation.currentAnimationFrame = 0;
+    newEnemy.entity.animation.currentAnimationState = IDLE;
+    newEnemy.entity.animation.isFacingRight = 1;
+    newEnemy.entity.animation.timeSinceLastFrame = 0;
+    newEnemy.entity.animation.currentAnimationFrameRect.x = 0.0f;
+    newEnemy.entity.animation.currentAnimationFrameRect.y = 0.0f;
+    newEnemy.entity.animation.currentAnimationFrameRect.width = newEnemy.entity.animation.animationFrameWidth;
+    newEnemy.entity.animation.currentAnimationFrameRect.height = newEnemy.entity.animation.animationFrameHeight;
     newEnemy.entity.characterWidthScale = 1.00f;
     newEnemy.entity.characterHeightScale = 1.00f;
     return newEnemy;
@@ -296,21 +297,21 @@ Camera2D CreateCamera (Vector2 target, Vector2 offset, float rotation, float zoo
 }
 
 void UpdatePlayer(Player *player, Enemy *enemy, float delta, Props *props, float minX) {
-    enum CHARACTER_STATE currentState = player->entity.currentAnimationState;
-    player->entity.timeSinceLastFrame += delta;
+    enum CHARACTER_STATE currentState = player->entity.animation.currentAnimationState;
+    player->entity.animation.timeSinceLastFrame += delta;
 
-    if (player->entity.currentAnimationState != DYING && player->entity.currentAnimationState != HURT) {
+    if (player->entity.animation.currentAnimationState != DYING && player->entity.animation.currentAnimationState != HURT) {
         if (IsKeyDown(KEY_LEFT)) {
             player->entity.position.x -= player->entity.walkSpeed*delta;
-            player->entity.isFacingRight = -1;
-            player->entity.currentAnimationState = WALKING;
+            player->entity.animation.isFacingRight = -1;
+            player->entity.animation.currentAnimationState = WALKING;
             
         } else if (IsKeyDown(KEY_RIGHT)) {
             player->entity.position.x += player->entity.walkSpeed*delta;
-            player->entity.isFacingRight = 1;
-            player->entity.currentAnimationState = WALKING;
+            player->entity.animation.isFacingRight = 1;
+            player->entity.animation.currentAnimationState = WALKING;
         } else {
-            player->entity.currentAnimationState = IDLE;
+            player->entity.animation.currentAnimationState = IDLE;
         }
 
         if (IsKeyDown(KEY_SPACE) && player->entity.isGrounded) 
@@ -320,7 +321,7 @@ void UpdatePlayer(Player *player, Enemy *enemy, float delta, Props *props, float
         }
 
         if (IsKeyPressed(KEY_H))
-            player->entity.currentAnimationState = HURT;
+            player->entity.animation.currentAnimationState = HURT;
 
         if (IsKeyPressed(KEY_P))
             player->entity.currentHP = 0;
@@ -330,8 +331,8 @@ void UpdatePlayer(Player *player, Enemy *enemy, float delta, Props *props, float
     // Collision check
     int hitObstacle = 0;
     int hasFloorBelow = 0;
-    Rectangle prect = {player->entity.position.x, player->entity.position.y, player->entity.animationFrameWidth, player->entity.animationFrameHeight};
-    Rectangle prectGrav = {player->entity.position.x, player->entity.position.y+1, player->entity.animationFrameWidth, player->entity.animationFrameHeight};
+    Rectangle prect = {player->entity.position.x, player->entity.position.y, player->entity.animation.animationFrameWidth, player->entity.animation.animationFrameHeight};
+    Rectangle prectGrav = {player->entity.position.x, player->entity.position.y+1, player->entity.animation.animationFrameWidth, player->entity.animation.animationFrameHeight};
     for (int i = 0; i < 1; i++)  // TODO 1 is "props[]"'s size
     {
         Props *eprop = props + i;
@@ -340,7 +341,7 @@ void UpdatePlayer(Player *player, Enemy *enemy, float delta, Props *props, float
             if (CheckCollisionRecs(eprop->rect, prect)) {
                 hitObstacle = 1;
                 player->entity.velocity.y = 0.0f;
-                p->y = eprop->rect.y - player->entity.animationFrameHeight;
+                p->y = eprop->rect.y - player->entity.animation.animationFrameHeight;
             }
             if (CheckCollisionRecs(eprop->rect, prectGrav)) {
                 hasFloorBelow = 1;
@@ -362,108 +363,37 @@ void UpdatePlayer(Player *player, Enemy *enemy, float delta, Props *props, float
     }
 
     // Animation handlers
-    if ((player->entity.currentAnimationState != DYING) && (player->entity.currentAnimationState != HURT)) {
+    if ((player->entity.animation.currentAnimationState != DYING) && (player->entity.animation.currentAnimationState != HURT)) {
         if (!player->entity.isGrounded) {
             if (player->entity.velocity.y < 0) {
-                player->entity.currentAnimationState = JUMPING;
+                player->entity.animation.currentAnimationState = JUMPING;
             } else if(player->entity.velocity.y > 0) {
-                player->entity.currentAnimationState = FALLING;
+                player->entity.animation.currentAnimationState = FALLING;
             }
         }
     }
 
     // Atualização de estado quando o player morre
-    if (player->entity.currentHP <= 0 && !(player->entity.currentAnimationState == DYING)) {
-        player->entity.currentAnimationState = DYING;
-    }
-
-    int animRow = 0;
-    if (currentState != player->entity.currentAnimationState) {
-        player->entity.timeSinceLastFrame = 0.0f;
-        player->entity.currentAnimationFrame = 0;
-    }
-    switch (player->entity.currentAnimationState)
-    {
-    case IDLE:
-        animRow = 0;
-        if (player->entity.timeSinceLastFrame >= player->entity.animationFrameSpeed) {
-            player->entity.timeSinceLastFrame = 0.0f;
-            player->entity.currentAnimationFrame++;
-            if (player->entity.currentAnimationFrame > 5) player->entity.currentAnimationFrame = 0; // 5 porque são 6 frames para essa animação 
-        }
-        break;
-    case WALKING:
-        animRow = 1;
-        if (player->entity.timeSinceLastFrame >= player->entity.animationFrameSpeed) {
-            player->entity.timeSinceLastFrame = 0.0f;
-            player->entity.currentAnimationFrame++;
-            if (player->entity.currentAnimationFrame > 7) player->entity.currentAnimationFrame = 0; // 7 porque são 8 frames para essa animação 
-        }
-        break;
-    case HURT:
-        animRow = 2;
-        if (player->entity.timeSinceLastFrame >= player->entity.animationFrameSpeed) {
-            player->entity.timeSinceLastFrame = 0.0f;
-            player->entity.currentAnimationFrame++;
-            if (player->entity.currentAnimationFrame > 5) { // 5 porque são 6 frames para essa animação, depois muda o estado
-                player->entity.currentAnimationFrame = 0; 
-                player->entity.currentAnimationState = IDLE;
-            } else if (player->entity.currentAnimationFrame < 2) {
-                player->entity.position.x -= player->entity.isFacingRight*600*delta;
-            }
-        }
-        break;
-    case JUMPING:
-        animRow = 3;
-        if (player->entity.timeSinceLastFrame >= player->entity.animationFrameSpeed) {
-            player->entity.timeSinceLastFrame = 0.0f;
-            player->entity.currentAnimationFrame++;
-            if (player->entity.currentAnimationFrame > 4) player->entity.currentAnimationFrame = 4; // 4 porque são 5 frames para essa animação, além disso, mantém o frame em "4"
-        }
-        break;
-    case FALLING:
-        animRow = 3;
-        if (player->entity.timeSinceLastFrame >= player->entity.animationFrameSpeed) {
-            player->entity.timeSinceLastFrame = 0.0f;
-            player->entity.currentAnimationFrame++;
-            player->entity.currentAnimationFrame = 5; // Mantém o frame em "4", pois a queda é apenas 1 frame
-        }
-        break;
-    case DYING:
-        animRow = 4;
-        if (player->entity.timeSinceLastFrame >= player->entity.animationFrameSpeed) {
-            player->entity.timeSinceLastFrame = 0.0f;
-            player->entity.currentAnimationFrame++;
-            if (player->entity.currentAnimationFrame > 6) { // 6 porque são 7 frames para essa animação, além disso, mantém o frame em "6"
-                player->entity.currentAnimationFrame = 6; 
-            } else {
-                player->entity.position.x -= player->entity.isFacingRight*1000*delta;
-            }
-            if (!player->entity.isGrounded) player->entity.position.x -= player->entity.isFacingRight*1000*delta;
-        }
-        break;
-    default:
-        break;
+    if (player->entity.currentHP <= 0 && !(player->entity.animation.currentAnimationState == DYING)) {
+        player->entity.animation.currentAnimationState = DYING;
     }
 
     // Update player animation frame Rect
-    player->entity.currentAnimationFrameRect.x = (float)player->entity.currentAnimationFrame * player->entity.animationFrameWidth;
-    player->entity.currentAnimationFrameRect.y = animRow * player->entity.animationFrameHeight;
-    player->entity.currentAnimationFrameRect.width = player->entity.isFacingRight * player->entity.animationFrameWidth;
+    int animRow = GetAnimRow(&(player->entity), delta, currentState);
+    player->entity.animation.currentAnimationFrameRect.x = (float)player->entity.animation.currentAnimationFrame * player->entity.animation.animationFrameWidth;
+    player->entity.animation.currentAnimationFrameRect.y = animRow * player->entity.animation.animationFrameHeight;
+    player->entity.animation.currentAnimationFrameRect.width = player->entity.animation.isFacingRight * player->entity.animation.animationFrameWidth;
 
     // Limitar posição do player de acordo com o avanço da câmera
     if (player->entity.position.x < minX) {
         player->entity.position.x = minX;
     } 
-
-    // Atualizar posição dos olhos
-    //player->entity.eyesOffset.x
 }
 
 void UpdateEnemy(Enemy *enemy, Player *player, float delta, Props *props) {
     Entity *eEnt = &(enemy->entity);
-    enum CHARACTER_STATE currentState = eEnt->currentAnimationState;
-    eEnt->timeSinceLastFrame += delta;
+    enum CHARACTER_STATE currentState = eEnt->animation.currentAnimationState;
+    eEnt->animation.timeSinceLastFrame += delta;
     enemy->timeSinceLastBehaviorChange += delta;
 
     // Steering behavior
@@ -473,8 +403,8 @@ void UpdateEnemy(Enemy *enemy, Player *player, float delta, Props *props) {
     {   
     int hitObstacle = 0;
     int hasFloorBelow = 0;
-    Rectangle prect = {eEnt->position.x, eEnt->position.y, eEnt->animationFrameWidth, eEnt->animationFrameHeight};
-    Rectangle prectGrav = {eEnt->position.x, eEnt->position.y+1, eEnt->animationFrameWidth, eEnt->animationFrameHeight};
+    Rectangle prect = {eEnt->position.x, eEnt->position.y, eEnt->animation.animationFrameWidth, eEnt->animation.animationFrameHeight};
+    Rectangle prectGrav = {eEnt->position.x, eEnt->position.y+1, eEnt->animation.animationFrameWidth, eEnt->animation.animationFrameHeight};
     for (int i = 0; i < 1; i++)  // TODO 1 is "props[]"'s size
     {
         Props *eprop = props + i;
@@ -483,7 +413,7 @@ void UpdateEnemy(Enemy *enemy, Player *player, float delta, Props *props) {
             if (CheckCollisionRecs(eprop->rect, prect)) {
                 hitObstacle = 1;
                 eEnt->velocity.y = 0.0f;
-                p->y = eprop->rect.y - eEnt->animationFrameHeight;
+                p->y = eprop->rect.y - eEnt->animation.animationFrameHeight;
             }
             if (CheckCollisionRecs(eprop->rect, prectGrav)) {
                 hasFloorBelow = 1;
@@ -506,7 +436,7 @@ void UpdateEnemy(Enemy *enemy, Player *player, float delta, Props *props) {
     }
 
     // Atualização da física
-    eEnt->velocity.x += eEnt->isFacingRight*eEnt->momentum.x * delta;
+    eEnt->velocity.x += eEnt->animation.isFacingRight*eEnt->momentum.x * delta;
     if (eEnt->velocity.x > eEnt->walkSpeed) {
         eEnt->velocity.x = eEnt->walkSpeed;
     } else if (eEnt->velocity.x < -eEnt->walkSpeed) {
@@ -515,19 +445,19 @@ void UpdateEnemy(Enemy *enemy, Player *player, float delta, Props *props) {
     eEnt->position.x += eEnt->velocity.x * delta;
 
     // Atualização de Estado
-    if ((eEnt->currentAnimationState != DYING) && (eEnt->currentAnimationState != HURT)) {
-        if (eEnt->currentAnimationState != ATTACKING) {
+    if ((eEnt->animation.currentAnimationState != DYING) && (eEnt->animation.currentAnimationState != HURT)) {
+        if (eEnt->animation.currentAnimationState != ATTACKING) {
             if (eEnt->isGrounded) {
                 if (eEnt->velocity.x != 0) {
-                    eEnt->currentAnimationState = WALKING;
+                    eEnt->animation.currentAnimationState = WALKING;
                 } else {
-                    eEnt->currentAnimationState = IDLE;
+                    eEnt->animation.currentAnimationState = IDLE;
                 }
             } else if (!eEnt->isGrounded) {
                 if (eEnt->velocity.y < 0) {
-                    eEnt->currentAnimationState = JUMPING;
+                    eEnt->animation.currentAnimationState = JUMPING;
                 } else if(eEnt->velocity.y > 0) {
-                    eEnt->currentAnimationState = FALLING;
+                    eEnt->animation.currentAnimationState = FALLING;
                 }
             }
         } else {
@@ -536,95 +466,15 @@ void UpdateEnemy(Enemy *enemy, Player *player, float delta, Props *props) {
     }
     
     // Atualização de estado quando o inimigo morre
-    if (eEnt->currentHP <= 0 && !(eEnt->currentAnimationState == DYING)) {
-        eEnt->currentAnimationState = DYING;
-    }
-
-    int animRow = 0;
-    
-    if (currentState != eEnt->currentAnimationState) {
-        eEnt->timeSinceLastFrame = 0.0f;
-        eEnt->currentAnimationFrame = 0;
-    }
-    switch (eEnt->currentAnimationState)
-    {
-    case IDLE:
-        animRow = 0;
-        if (eEnt->timeSinceLastFrame >= eEnt->animationFrameSpeed) {
-            eEnt->timeSinceLastFrame = 0.0f;
-            eEnt->currentAnimationFrame++;
-            if (eEnt->currentAnimationFrame > 5) eEnt->currentAnimationFrame = 0; // 5 porque são 6 frames para essa animação 
-        }
-        break;
-    case WALKING:
-        animRow = 1;
-        if (eEnt->timeSinceLastFrame >= eEnt->animationFrameSpeed) {
-            eEnt->timeSinceLastFrame = 0.0f;
-            eEnt->currentAnimationFrame++;
-            if (eEnt->currentAnimationFrame > 7) eEnt->currentAnimationFrame = 0; // 7 porque são 8 frames para essa animação 
-        }
-        break;
-    case HURT:
-        animRow = 2;
-        if (eEnt->timeSinceLastFrame >= eEnt->animationFrameSpeed) {
-            eEnt->timeSinceLastFrame = 0.0f;
-            eEnt->currentAnimationFrame++;
-            if (eEnt->currentAnimationFrame > 5) { // 5 porque são 6 frames para essa animação, depois muda o estado
-                eEnt->currentAnimationFrame = 0; 
-                eEnt->currentAnimationState = IDLE;
-            } else if (eEnt->currentAnimationFrame < 2) {
-                eEnt->position.x -= eEnt->isFacingRight*600*delta;
-            }
-        }
-        break;
-    case JUMPING:
-        animRow = 3;
-        if (eEnt->timeSinceLastFrame >= eEnt->animationFrameSpeed) {
-            eEnt->timeSinceLastFrame = 0.0f;
-            eEnt->currentAnimationFrame++;
-            if (eEnt->currentAnimationFrame > 4) eEnt->currentAnimationFrame = 4; // 4 porque são 5 frames para essa animação, além disso, mantém o frame em "4"
-        }
-        break;
-    case FALLING:
-        animRow = 3;
-        if (eEnt->timeSinceLastFrame >= eEnt->animationFrameSpeed) {
-            eEnt->timeSinceLastFrame = 0.0f;
-            eEnt->currentAnimationFrame++;
-            eEnt->currentAnimationFrame = 5; // Mantém o frame em "4", pois a queda é apenas 1 frame
-        }
-        break;
-    case DYING:
-        animRow = 4;
-        if (eEnt->timeSinceLastFrame >= eEnt->animationFrameSpeed) {
-            eEnt->timeSinceLastFrame = 0.0f;
-            eEnt->currentAnimationFrame++;
-            if (eEnt->currentAnimationFrame > 6) { // 6 porque são 7 frames para essa animação, além disso, mantém o frame em "6"
-                eEnt->currentAnimationFrame = 6; 
-            } else {
-                eEnt->position.x -= eEnt->isFacingRight*1000*delta;
-            }
-            if (!eEnt->isGrounded) eEnt->position.x -= eEnt->isFacingRight*1000*delta;
-        }
-        break;
-    case ATTACKING:
-        animRow = 6;
-        if (eEnt->timeSinceLastFrame >= eEnt->animationFrameSpeed) {
-            eEnt->timeSinceLastFrame = 0.0f;
-            eEnt->currentAnimationFrame++;
-            if (eEnt->currentAnimationFrame > 5) { // 5 porque são 6 frames para essa animação, depois muda o estado
-                eEnt->currentAnimationFrame = 0; 
-                eEnt->currentAnimationState = IDLE;
-            }
-        }
-        break;
-    default:
-        break;
+    if (eEnt->currentHP <= 0 && !(eEnt->animation.currentAnimationState == DYING)) {
+        eEnt->animation.currentAnimationState = DYING;
     }
 
     // Update enemy animation frame Rect
-    eEnt->currentAnimationFrameRect.x = (float)eEnt->currentAnimationFrame * eEnt->animationFrameWidth;
-    eEnt->currentAnimationFrameRect.y = animRow * eEnt->animationFrameHeight;
-    eEnt->currentAnimationFrameRect.width = eEnt->isFacingRight * eEnt->animationFrameWidth;
+    int animRow = GetAnimRow(eEnt, delta, currentState);
+    eEnt->animation.currentAnimationFrameRect.x = (float)eEnt->animation.currentAnimationFrame * eEnt->animation.animationFrameWidth;
+    eEnt->animation.currentAnimationFrameRect.y = animRow * eEnt->animation.animationFrameHeight;
+    eEnt->animation.currentAnimationFrameRect.width = eEnt->animation.isFacingRight * eEnt->animation.animationFrameWidth;
 
 }
 
