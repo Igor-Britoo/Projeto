@@ -140,7 +140,7 @@ int main(void) {
                 
 
                 // Draw props
-                for (int i = 0; i < maxNumProps; i++) { // TODO 1 is "props[]"'s size
+                for (int i = 0; i < maxNumProps; i++) {
                     if (propsPool[i].isActive)
                         if (!propsPool[i].isInvisible)
                             DrawRectangleRec(propsPool[i].rect, WHITE);
