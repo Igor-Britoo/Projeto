@@ -10,7 +10,7 @@
 #define WP_SWORD_ID 3;
 
 // Enums
-enum CHARACTER_STATE{IDLE, WALKING, HURT, JUMPING, FALLING, ATTACKING, DYING};
+enum CHARACTER_STATE{IDLE, WALKING, HURT, JUMPING, FALLING, ATTACKING, DYING, DEAD};
 enum ENTITY_TYPES{PLAYER, ENEMY};
 enum ENEMY_BEHAVIOR{NONE, ATTACK, MOVE};
 enum BACKGROUND_TYPES{BACKGROUND, MIDDLEGROUND, FOREGROUND};
@@ -24,13 +24,18 @@ const static int numBackgroundRendered = 3;
 const static int maxNumBullets = 100;
 const static int maxNumEnemies = 20;
 const static int maxNumProps = 20;
-const static int numEnemyClass = 6;
+const static int numEnemyClasses = 6;
 const int screenWidth = 1600;
 const int screenHeight = 900;
 const char gameName[30] = "Project N30-N";
 bool isFullscreen = 0;
 
 // Structs
+typedef struct circle {
+    Vector2 center;
+    float radius;
+} Circle;
+
 typedef struct animation {
     enum CHARACTER_STATE currentAnimationState;
     Rectangle currentAnimationFrameRect;
@@ -57,6 +62,11 @@ typedef struct entity {
     float characterWidthScale;
     float characterHeightScale;
     Animation animation;
+    int width;
+    int height;
+    Rectangle drawableRect;
+    Rectangle collisionBox;
+    Circle collisionHead;
 
 } Entity;
 
@@ -133,6 +143,8 @@ typedef struct bullet {
     float power;
     float lifeTime;
     bool isActive;
+    Rectangle drawableRect;
+    Rectangle collisionBox;
 
 } Bullet;
 
@@ -140,15 +152,18 @@ typedef struct bullet {
 void CreateBullet(Entity *entity, Bullet *bulletsPool, enum BULLET_TYPE bulletType, enum ENTITY_TYPES srcEntity);
 Background CreateBackground(Player *player, Background *backgroundPool, enum BACKGROUND_TYPES bgType, int *numBackground, float scale);
 Camera2D CreateCamera (Vector2 target, Vector2 offset, float rotation, float zoom);
-Player CreatePlayer(int maxHP, Vector2 position, float imageWidth, float imageHeight);
-Enemy CreateEnemy(enum ENEMY_CLASSES class, int maxHP, Vector2 position, float imageWidth, float imageHeight);
+Player CreatePlayer(int maxHP, Vector2 position, int width, int height);
+Enemy CreateEnemy(enum ENEMY_CLASSES class, int maxHP, Vector2 position, int width, int height);
 
 void UpdateBackground(Player *player, Background *backgroundPool, float delta, int *numBackground, float minX, float *maxX);
 void UpdateClampedCameraPlayer(Camera2D *camera, Player *player, Props *props, float delta, int width, int height, float *minX, float maxX);
 void UpdatePlayer(Player *player, Enemy *enemy, Bullet *bulletPool, float delta, Props *props, float minX);
 void UpdateBullets(Bullet *bullet, Enemy *enemy, Player *player, Props *props, float delta);
-void UpdateEnemy(Enemy *enemy, Player *player, float delta, Props *props);
+void UpdateEnemy(Enemy *enemy, Player *player, Bullet *bulletPool, float delta, Props *props);
 void UpdateProps(Player *player, Props *props, float delta, float minX);
+
+void DrawEnemy(Enemy *enemy, Texture2D *texture, bool drawDetectionCollision, bool drawLife, bool drawCollisionBox);
+void DrawBullet(Bullet *bullet, Texture2D texture, bool drawCollisionBox);
 
 void TurnAround(Entity *ent) {
     ent->animation.isFacingRight *= -1;
@@ -172,15 +187,17 @@ void MoveToTarget(Enemy *enemy) {
     enemy->entity.momentum.x += 200;
 }
 
-void AttackTarget(Enemy *enemy) {
+void AttackTarget(Enemy *enemy, Bullet *bulletPool) {
     // Atualizar estado
     LookAtTarget(enemy);
+    if (enemy->entity.animation.currentAnimationFrame == 0 && enemy->entity.animation.timeSinceLastFrame <= 0.03f) // Temporário... implementar velocidade de ataque
+        CreateBullet(&(enemy->entity), bulletPool, MAGNUM, ENEMY);
     enemy->entity.animation.currentAnimationState = ATTACKING;
     enemy->entity.momentum.x = 0;
     enemy->entity.velocity.x = 0;
 }
 
-void SteeringBehavior(Enemy *enemy, Player *player, float delta) {
+void SteeringBehavior(Enemy *enemy, Player *player, Bullet *bulletPool, float delta) {
     Entity *eEnt = &(enemy->entity); // Pointer direto para a Entity do inimigo
     Entity *pEnt = &(player->entity); // Pointer direto para a Entity do player
     
@@ -214,7 +231,7 @@ void SteeringBehavior(Enemy *enemy, Player *player, float delta) {
                         MoveToTarget(enemy);
                     } else {
                         enemy->behavior = ATTACK;
-                        AttackTarget(enemy);
+                        AttackTarget(enemy, bulletPool);
                     }
                 } else {
                     attackX = eEnt->position.x - enemy->attackRange;
@@ -223,7 +240,7 @@ void SteeringBehavior(Enemy *enemy, Player *player, float delta) {
                         MoveToTarget(enemy);
                     } else {
                         enemy->behavior = ATTACK;
-                        AttackTarget(enemy);
+                        AttackTarget(enemy, bulletPool);
                     }
                 }
             }
@@ -395,17 +412,17 @@ void EntityCollisionHandler(Entity *entity, Props *props, float delta) {
     // Colisão com props                                            ///////////////////////////////////////////////////////////////////////
     int hitObstacle = 0;
     int hasFloorBelow = 0;
-    Rectangle prect = {entity->position.x, entity->position.y, entity->animation.animationFrameWidth, entity->animation.animationFrameHeight};
-    Rectangle prectGrav = {entity->position.x, entity->position.y+1, entity->animation.animationFrameWidth, entity->animation.animationFrameHeight};
+    Rectangle prectGrav = entity->collisionBox;
+    prectGrav.y += 1;
     for (int i = 0; i < maxNumProps; i++)
     {
         Props *eprop = props + i;
         Vector2 *p = &(entity->position);
         if (eprop->canBeStepped) {
-            if (CheckCollisionRecs(eprop->rect, prect)) {
+            if (CheckCollisionRecs(eprop->rect, entity->collisionBox)) {
                 hitObstacle = 1;
                 entity->velocity.y = 0.0f;
-                p->y = eprop->rect.y - entity->animation.animationFrameHeight;
+                p->y = eprop->rect.y - entity->height / 2;
             }
             if (CheckCollisionRecs(eprop->rect, prectGrav)) {
                 hasFloorBelow = 1;
