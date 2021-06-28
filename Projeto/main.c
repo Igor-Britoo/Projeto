@@ -10,8 +10,12 @@ int main(void) {
     Texture2D midgroundTex = LoadTexture("resources/Background/cyberpunk_street_midground.png");
     Texture2D foregroundTex = LoadTexture("resources/Background/cyberpunk_street_foreground.png");
     Texture2D characterTex = LoadTexture("resources/Atlas/hero_atlas.png");    
+    Texture2D characterTexDiv = LoadTexture("resources/Atlas/hero_atlas_div.png");    
     Texture2D miscAtlas = LoadTexture("resources/Atlas/misc_atlas.png");        
-    Texture2D enemyTex[6]; // 6 = numEnemyClasses
+    Texture2D backgroundAtlas = LoadTexture("resources/Atlas/background_atlas.png");        
+    Texture2D midgroundAtlas = LoadTexture("resources/Atlas/midground_atlas.png");        
+    Texture2D foregroundAtlas = LoadTexture("resources/Background/cyberpunk_street_foreground.png");
+    Texture2D *enemyTex = (Texture2D *)malloc(numEnemyClasses*sizeof(Texture2D));
     enemyTex[SWORDSMAN] = LoadTexture("resources/Atlas/hero_atlas.png");
     enemyTex[GUNNER] = LoadTexture("resources/Atlas/hero_atlas.png");
     enemyTex[SNIPERSHOOTER] = LoadTexture("resources/Atlas/hero_atlas.png");
@@ -31,39 +35,43 @@ int main(void) {
     Camera2D camera = CreateCamera(player.entity.position, (Vector2) {screenWidth/2.0f, screenHeight/2.0f}, 0.0f, 1.00f);
 
     // General Init
-    Bullet bulletsPool[100]; // 100 -> maxNumBullets
+    Bullet *bulletsPool = (Bullet *)malloc(maxNumBullets*sizeof(Bullet));
+
     for (int i = 0; i < maxNumBullets; i++) {
         bulletsPool[i].isActive = false;
     }
 
-    Background nearBackgroundPool[3], middleBackgroundPool[3], farBackgroundPool[3]; // Pool de backgrounds. Sempre que um "sai" da tela, é destruído e um novo é gerado no "final" do mapa, mantendo sempre apenas 3 chunks
+    // Pool de backgrounds. Sempre que um "sai" da tela, é destruído e um novo é gerado no "final" do mapa, mantendo sempre apenas 3 chunks
+    Background *nearBackgroundPool = (Background *)malloc(numBackgroundRendered*sizeof(Background));
+    Background *middleBackgroundPool = (Background *)malloc(numBackgroundRendered*sizeof(Background));
+    Background *farBackgroundPool = (Background *)malloc(numBackgroundRendered*sizeof(Background));
     int numNearBackground = 0, numMiddleBackground = 0, numFarBackground = 0; // Usado para posicionamento correto das novas imagens geradas
     for (int i = 0; i < numBackgroundRendered; i++) {
-        farBackgroundPool[i] = CreateBackground(&player, farBackgroundPool, BACKGROUND, &numFarBackground, 2.0f);
-        middleBackgroundPool[i] = CreateBackground(&player, middleBackgroundPool, MIDDLEGROUND, &numMiddleBackground, 2.0f);
-        nearBackgroundPool[i] = CreateBackground(&player, nearBackgroundPool, FOREGROUND, &numNearBackground, 2.0f);
+        farBackgroundPool[i] = CreateBackground(&player, farBackgroundPool, backgroundAtlas, BACKGROUND, &numFarBackground, 2.0f);
+        middleBackgroundPool[i] = CreateBackground(&player, middleBackgroundPool, midgroundAtlas, MIDDLEGROUND, &numMiddleBackground, 2.0f);
+        nearBackgroundPool[i] = CreateBackground(&player, nearBackgroundPool, foregroundAtlas, FOREGROUND, &numNearBackground, 2.0f);
     }
-    Props propsPool[20];
+
+    Props *propsPool = (Props *)malloc(maxNumProps*sizeof(Props));
     for (int i = 0; i < maxNumProps; i++) {
         propsPool[i].isActive = false;
     } 
-    propsPool[0] = (Props){(Rectangle){0,430,screenWidth*3,5}, 1, 0, 1};
+    propsPool[0] = (Props){(Rectangle){0,screenHeight-165,screenWidth*3,5}, 1, 0, 1, true};
 
     // Enemy Init
-    Enemy enemyPool[20]; // maxNumEnemies
+    Enemy *enemyPool = (Enemy *)malloc(maxNumEnemies*sizeof(Enemy));
     for (int i = 0; i < maxNumEnemies; i++) {
         enemyPool[i].isAlive = false;
     }
-    enemyPool[0] = CreateEnemy(BOSS,500, (Vector2){750, 150},122, 122);
 
     // Main game loop
     while (!WindowShouldClose()) {
+
         // Usado para debbug
-        /*
         Vector2 mousePosition = GetMousePosition();
 
         if (IsMouseButtonPressed(0)) mouseClick = mousePosition;
-        */
+        
 
         // Updates
         float deltaTime = GetFrameTime();
@@ -88,9 +96,9 @@ int main(void) {
         }
 
         // Loop dentro da função TODO
-        UpdateBackground(&player, nearBackgroundPool, deltaTime, &numNearBackground, camMinX, &camMaxX);
-        UpdateBackground(&player, middleBackgroundPool, deltaTime, &numMiddleBackground, camMinX, &camMaxX);
-        UpdateBackground(&player, farBackgroundPool,deltaTime, &numFarBackground, camMinX, &camMaxX);
+        UpdateBackground(&player, nearBackgroundPool, foregroundAtlas, deltaTime, &numNearBackground, camMinX, &camMaxX);
+        UpdateBackground(&player, middleBackgroundPool, midgroundAtlas, deltaTime, &numMiddleBackground, camMinX, &camMaxX);
+        UpdateBackground(&player, farBackgroundPool, backgroundAtlas, deltaTime, &numFarBackground, camMinX, &camMaxX);
 
 
         // Atualizar inimigos
@@ -108,15 +116,18 @@ int main(void) {
 
                 // Desenhar os backgrounds
                 for (int i = 0; i < numBackgroundRendered; i++) {
-                    DrawTextureEx(backgroundTex, (Vector2){farBackgroundPool[i].position.x, farBackgroundPool[i].position.y}, 0.0f, farBackgroundPool[i].scale, WHITE);
+                    DrawTextureRec(farBackgroundPool[i].canvas.texture, (Rectangle) { 0, 0, (float)farBackgroundPool[i].canvas.texture.width, (float)-farBackgroundPool[i].canvas.texture.height },
+                    (Vector2) { farBackgroundPool[i].position.x, farBackgroundPool[i].position.y }, WHITE);
                 }       
-                // Desenhar os middlegrounds
+             // Desenhar os middlegrounds
                 for (int i = 0; i < numBackgroundRendered; i++) {
-                    DrawTextureEx(midgroundTex, (Vector2){middleBackgroundPool[i].position.x, middleBackgroundPool[i].position.y}, 0.0f, middleBackgroundPool[i].scale, WHITE);
+                    DrawTextureRec(middleBackgroundPool[i].canvas.texture, (Rectangle) { 0, 0, (float)middleBackgroundPool[i].canvas.texture.width, (float)-middleBackgroundPool[i].canvas.texture.height },
+                    (Vector2) { middleBackgroundPool[i].position.x, middleBackgroundPool[i].position.y }, WHITE);
                 }       
                 // Desenhar os foregrounds
                 for (int i = 0; i < numBackgroundRendered; i++) {
-                    DrawTextureEx(foregroundTex, (Vector2){nearBackgroundPool[i].position.x, nearBackgroundPool[i].position.y}, 0.0f, nearBackgroundPool[i].scale, WHITE);
+                    DrawTextureRec(nearBackgroundPool[i].canvas.texture, (Rectangle) { 0, 0, (float)nearBackgroundPool[i].canvas.texture.width, (float)-nearBackgroundPool[i].canvas.texture.height },
+                    (Vector2) { nearBackgroundPool[i].position.x, nearBackgroundPool[i].position.y }, WHITE);
                 }       
 
                 // Draw bullets
@@ -127,10 +138,7 @@ int main(void) {
                 }
 
                 // Draw player
-                float charWidth = player.entity.animation.animationFrameWidth*player.entity.characterWidthScale;
-                float charHeight= player.entity.animation.animationFrameHeight*player.entity.characterHeightScale;
-                Rectangle dstRect = {player.entity.position.x - charWidth/2, player.entity.position.y - charHeight/2, charWidth, charHeight};
-                DrawTexturePro(characterTex, player.entity.animation.currentAnimationFrameRect, dstRect, (Vector2) {0, 0}, 0, WHITE);
+                DrawPlayer(&player, characterTexDiv, false);
 
                 // Draw Enemy
                 for (int i = 0; i < maxNumEnemies; i++) {
@@ -138,7 +146,6 @@ int main(void) {
                         DrawEnemy(&enemyPool[i], enemyTex, false, false, false); //enemypool, enemytex, detecção, vida, colisão
                 }
                 
-
                 // Draw props
                 for (int i = 0; i < maxNumProps; i++) {
                     if (propsPool[i].isActive)
@@ -146,69 +153,60 @@ int main(void) {
                             DrawRectangleRec(propsPool[i].rect, WHITE);
                 }
 
+        EndMode2D();
 
-            EndMode2D();
-
-            // TODO o que está nessa região fica "parado" em relação à câmera
-            char state[30];
-            sprintf(state, "%d", player.entity.isGrounded);
-            DrawText(state, 0, 600, 20, RED);
-            sprintf(state, "%f", player.entity.position.y);
-            DrawText(state, 0, 625, 20, RED);
-    
-
-    ////////////////////////////////////////////////// INÍCIO DE DEBBUG //////////////////////////////////////////////////
-    /*
-    char state[30];
-    switch (player.entity.animation.currentAnimationState) {
-    case IDLE:
-        strcpy(state, "ANIMATION STATE: IDLE");
-        break;
-    case WALKING:
-        strcpy(state, "ANIMATION STATE: WALKING");
-        break;
-    case JUMPING:
-        strcpy(state, "ANIMATION STATE: JUMPING");
-        break;
-    case FALLING:
-        strcpy(state, "ANIMATION STATE: FALLING");
-        break;
-    case ATTACKING:
-        strcpy(state, "ANIMATION STATE: ATTACKING");
-        break;
-    default:
-        break;
-    }
-    DrawText(state, 0, 600, 20, RED);
-
-    switch (enemies[0].behavior) {
-    case NONE:
-        strcpy(state, "BEHAVIOR STATE: NONE");
-        break;
-    case ATTACK:
-        strcpy(state, "BEHAVIOR STATE: ATTACK");
-        break;
-    case MOVE:
-        strcpy(state, "BEHAVIOR STATE: MOVE");
-        break;
-    default:
-        break;
-    }
-    //DrawText(state, 0, 625, 20, RED);
-
-    sprintf(state, "%f", enemies[0].entity.position.x);
-    //DrawText("ePx:", 0, 650, 20, RED);
-    //DrawText(state, 100, 650, 20, RED);
-    sprintf(state, "%f", enemies[0].target.x);
-    //DrawText("tPx", 0, 675, 20, RED);
-    //DrawText(state, 100, 675, 20, RED);
-    sprintf(state, "%f", enemies[0].noDetectionTime);
-    //DrawText("nDT:", 0, 700, 20, RED);
-    //DrawText(state, 100, 700, 20, RED);
-*/
-    ////////////////////////////////////////////////// FIM DE DEBBUG //////////////////////////////////////////////////
+        //Chão
+        DrawRectangle(0, screenHeight-150, screenWidth, 150, LIGHTGRAY);
+        // TODO o que está nessa região fica "parado" em relação à câmera
+        
+        //HUD deve vir aqui
+            char state[50];
+            //sprintf(state, "%d", player.entity.upperAnimation.currentAnimationFrame);
+            //DrawText(state, 0, 675, 20, GREEN);
+            switch (player.entity.upperAnimation.currentAnimationState) {
+            case IDLE:
+                strcpy(state, "UPPER ANIMATION STATE: IDLE");
+                break;
+            case WALKING:
+                strcpy(state, "UPPER ANIMATION STATE: WALKING");
+                break;
+            case JUMPING:
+                strcpy(state, "UPPER ANIMATION STATE: JUMPING");
+                break;
+            case FALLING:
+                strcpy(state, "UPPER ANIMATION STATE: FALLING");
+                break;
+            case ATTACKING:
+                strcpy(state, "UPPER ANIMATION STATE: ATTACKING");
+                break;
+            default:
+                break;
+            }
+            DrawText(state, 0, 0, 20, RED);
+            switch (player.entity.lowerAnimation.currentAnimationState) {
+            case IDLE:
+                strcpy(state, "LOWER ANIMATION STATE: IDLE");
+                break;
+            case WALKING:
+                strcpy(state, "LOWER ANIMATION STATE: WALKING");
+                break;
+            case JUMPING:
+                strcpy(state, "LOWER ANIMATION STATE: JUMPING");
+                break;
+            case FALLING:
+                strcpy(state, "LOWER ANIMATION STATE: FALLING");
+                break;
+            case ATTACKING:
+                strcpy(state, "LOWER ANIMATION STATE: ATTACKING");
+                break;
+            default:
+                break;
+            }
+            DrawText(state, 0, 25, 20, RED);
 
         EndDrawing();
+
+
     }
 
     // Unload
@@ -216,6 +214,13 @@ int main(void) {
     UnloadTexture(midgroundTex);
     UnloadTexture(foregroundTex);
     UnloadTexture(characterTex);
+    UnloadTexture(characterTexDiv);
+    UnloadTexture(miscAtlas);
+    for (int i = 0; i < numBackgroundRendered; i++) {
+        UnloadRenderTexture(farBackgroundPool[i].canvas);
+        UnloadRenderTexture(nearBackgroundPool[i].canvas);
+        UnloadRenderTexture(middleBackgroundPool[i].canvas);
+    }
     for (int i = 0; i < numEnemyClasses; i++)
         UnloadTexture(enemyTex[i]);
 
@@ -223,34 +228,28 @@ int main(void) {
     return 0;
 }
 
-Background CreateBackground(Player *player, Background *backgroundPool, enum BACKGROUND_TYPES bgType, int *numBackground, float scale) {
+Background CreateBackground(Player *player, Background *backgroundPool, Texture2D srcAtlas, enum BACKGROUND_TYPES bgType, int *numBackground, float scale) {
     Background dstBackground;
     int numBg = *numBackground;
 
     switch (bgType)
     {
     case BACKGROUND:
-        dstBackground.width = 512*scale;
-        dstBackground.height = 192*scale;
-        dstBackground.position.y = 20;
         dstBackground.relativePosition = -0.05f; // Velocidade do parallax (quanto menor, mais lento)
         break;
     case MIDDLEGROUND:
-        dstBackground.width = 512*scale;
-        dstBackground.height = 192*scale;
-        dstBackground.position.y = 20;
         dstBackground.relativePosition = -0.025f; // Velocidade do parallax (quanto menor, mais lento)
         break;
     case FOREGROUND:
-        dstBackground.width = 704*scale;
-        dstBackground.height = 192*scale;
-        dstBackground.position.y = 70;
         dstBackground.relativePosition = 0.0f; // Velocidade do parallax (quanto menor, mais lento)
-        break;
-    default:
         break;
     }
 
+
+    dstBackground.position.y = 0;
+    dstBackground.canvas = PaintCanvas(srcAtlas, bgType);
+    dstBackground.width = dstBackground.canvas.texture.width;
+    dstBackground.height = dstBackground.canvas.texture.height;
     dstBackground.bgType = bgType;
     dstBackground.scale = scale;
     dstBackground.position.x = numBg * dstBackground.width;
@@ -280,17 +279,28 @@ Player CreatePlayer (int maxHP, Vector2 position, int width, int height) {
 
     newPlayer.entity.width = width;
     newPlayer.entity.height = height;
-    newPlayer.entity.animation.animationFrameSpeed = 0.08f;
-    newPlayer.entity.animation.animationFrameWidth = 122;//(float)imageWidth/imageFramesCount;
-    newPlayer.entity.animation.animationFrameHeight = 122;//imageHeight;
-    newPlayer.entity.animation.currentAnimationFrame = 0;
-    newPlayer.entity.animation.currentAnimationState = IDLE;
-    newPlayer.entity.animation.isFacingRight = 1;
-    newPlayer.entity.animation.timeSinceLastFrame = 0;
-    newPlayer.entity.animation.currentAnimationFrameRect.x = 0.0f;
-    newPlayer.entity.animation.currentAnimationFrameRect.y = 0.0f;
-    newPlayer.entity.animation.currentAnimationFrameRect.width = newPlayer.entity.animation.animationFrameWidth;
-    newPlayer.entity.animation.currentAnimationFrameRect.height = newPlayer.entity.animation.animationFrameHeight;
+    newPlayer.entity.upperAnimation.animationFrameSpeed = 0.08f;
+    newPlayer.entity.upperAnimation.animationFrameWidth = 122;//(float)imageWidth/imageFramesCount;
+    newPlayer.entity.upperAnimation.animationFrameHeight = 122;//imageHeight;
+    newPlayer.entity.upperAnimation.currentAnimationFrame = 0;
+    newPlayer.entity.upperAnimation.currentAnimationState = IDLE;
+    newPlayer.entity.upperAnimation.isFacingRight = 1;
+    newPlayer.entity.upperAnimation.timeSinceLastFrame = 0;
+    newPlayer.entity.upperAnimation.currentAnimationFrameRect.x = 0.0f;
+    newPlayer.entity.upperAnimation.currentAnimationFrameRect.y = 0.0f;
+    newPlayer.entity.upperAnimation.currentAnimationFrameRect.width = newPlayer.entity.upperAnimation.animationFrameWidth;
+    newPlayer.entity.upperAnimation.currentAnimationFrameRect.height = newPlayer.entity.upperAnimation.animationFrameHeight;
+    newPlayer.entity.lowerAnimation.animationFrameSpeed = 0.08f;
+    newPlayer.entity.lowerAnimation.animationFrameWidth = 122;//(float)imageWidth/imageFramesCount;
+    newPlayer.entity.lowerAnimation.animationFrameHeight = 122;//imageHeight;
+    newPlayer.entity.lowerAnimation.currentAnimationFrame = 0;
+    newPlayer.entity.lowerAnimation.currentAnimationState = IDLE;
+    newPlayer.entity.lowerAnimation.isFacingRight = 1;
+    newPlayer.entity.lowerAnimation.timeSinceLastFrame = 0;
+    newPlayer.entity.lowerAnimation.currentAnimationFrameRect.x = 0.0f;
+    newPlayer.entity.lowerAnimation.currentAnimationFrameRect.y = 0.0f;
+    newPlayer.entity.lowerAnimation.currentAnimationFrameRect.width = newPlayer.entity.lowerAnimation.animationFrameWidth;
+    newPlayer.entity.lowerAnimation.currentAnimationFrameRect.height = newPlayer.entity.lowerAnimation.animationFrameHeight;
     newPlayer.entity.characterWidthScale = 1.00f;
     newPlayer.entity.characterHeightScale = 1.00f;
 
@@ -314,6 +324,7 @@ Enemy CreateEnemy(enum ENEMY_CLASSES class, int maxHP, Vector2 position, int wid
     newEnemy.spawnLocation = (Vector2){position.x, position.y};
     newEnemy.maxDistanceToSpawn = 1000;
     newEnemy.isAlive = true;
+    newEnemy.timeSinceLastAttack = 0;
 
     newEnemy.entity.position = newEnemy.spawnLocation;
     newEnemy.entity.velocity.x = 0.0f;
@@ -328,17 +339,28 @@ Enemy CreateEnemy(enum ENEMY_CLASSES class, int maxHP, Vector2 position, int wid
 
     newEnemy.entity.width = width;
     newEnemy.entity.height = height;
-    newEnemy.entity.animation.animationFrameSpeed = 0.10f;
-    newEnemy.entity.animation.animationFrameWidth = 122;//(float)imageWidth/imageFramesCount;
-    newEnemy.entity.animation.animationFrameHeight = 122;//imageHeight;
-    newEnemy.entity.animation.currentAnimationFrame = 0;
-    newEnemy.entity.animation.currentAnimationState = IDLE;
-    newEnemy.entity.animation.isFacingRight = 1;
-    newEnemy.entity.animation.timeSinceLastFrame = 0;
-    newEnemy.entity.animation.currentAnimationFrameRect.x = 0.0f;
-    newEnemy.entity.animation.currentAnimationFrameRect.y = 0.0f;
-    newEnemy.entity.animation.currentAnimationFrameRect.width = newEnemy.entity.animation.animationFrameWidth;
-    newEnemy.entity.animation.currentAnimationFrameRect.height = newEnemy.entity.animation.animationFrameHeight;
+    newEnemy.entity.lowerAnimation.animationFrameSpeed = 0.10f;
+    newEnemy.entity.lowerAnimation.animationFrameWidth = 122;//(float)imageWidth/imageFramesCount;
+    newEnemy.entity.lowerAnimation.animationFrameHeight = 122;//imageHeight;
+    newEnemy.entity.lowerAnimation.currentAnimationFrame = 0;
+    newEnemy.entity.lowerAnimation.currentAnimationState = IDLE;
+    newEnemy.entity.lowerAnimation.isFacingRight = 1;
+    newEnemy.entity.lowerAnimation.timeSinceLastFrame = 0;
+    newEnemy.entity.lowerAnimation.currentAnimationFrameRect.x = 0.0f;
+    newEnemy.entity.lowerAnimation.currentAnimationFrameRect.y = 0.0f;
+    newEnemy.entity.lowerAnimation.currentAnimationFrameRect.width = newEnemy.entity.lowerAnimation.animationFrameWidth;
+    newEnemy.entity.lowerAnimation.currentAnimationFrameRect.height = newEnemy.entity.lowerAnimation.animationFrameHeight;
+    newEnemy.entity.upperAnimation.animationFrameSpeed = 0.10f;
+    newEnemy.entity.upperAnimation.animationFrameWidth = 122;//(float)imageWidth/imageFramesCount;
+    newEnemy.entity.upperAnimation.animationFrameHeight = 122;//imageHeight;
+    newEnemy.entity.upperAnimation.currentAnimationFrame = 0;
+    newEnemy.entity.upperAnimation.currentAnimationState = IDLE;
+    newEnemy.entity.upperAnimation.isFacingRight = 1;
+    newEnemy.entity.upperAnimation.timeSinceLastFrame = 0;
+    newEnemy.entity.upperAnimation.currentAnimationFrameRect.x = 0.0f;
+    newEnemy.entity.upperAnimation.currentAnimationFrameRect.y = 0.0f;
+    newEnemy.entity.upperAnimation.currentAnimationFrameRect.width = newEnemy.entity.upperAnimation.animationFrameWidth;
+    newEnemy.entity.upperAnimation.currentAnimationFrameRect.height = newEnemy.entity.upperAnimation.animationFrameHeight;
     newEnemy.entity.characterWidthScale = 1.00f;
     newEnemy.entity.characterHeightScale = 1.00f;
 
@@ -351,36 +373,42 @@ Enemy CreateEnemy(enum ENEMY_CLASSES class, int maxHP, Vector2 position, int wid
         case SWORDSMAN:
             newEnemy.viewDistance = 600;
             newEnemy.attackRange = 0;
+            newEnemy.attackSpeed = 0.8f; // Ataques por segundo
             newEnemy.entity.maxHP = maxHP;
             newEnemy.entity.currentHP = maxHP;
             break;
         case GUNNER:
             newEnemy.viewDistance = 600;
             newEnemy.attackRange = 200;
+            newEnemy.attackSpeed = 0.8f; // Ataques por segundo
             newEnemy.entity.maxHP = maxHP;
             newEnemy.entity.currentHP = maxHP;
             break;
         case SNIPERSHOOTER:
             newEnemy.viewDistance = 1000;
             newEnemy.attackRange = 1000;
+            newEnemy.attackSpeed = 0.8f; // Ataques por segundo
             newEnemy.entity.maxHP = maxHP;
             newEnemy.entity.currentHP = maxHP;
             break;
         case DRONE:
             newEnemy.viewDistance = 600;
             newEnemy.attackRange = 200;
+            newEnemy.attackSpeed = 0.8f; // Ataques por segundo
             newEnemy.entity.maxHP = maxHP;
             newEnemy.entity.currentHP = maxHP;
             break;
         case TURRET:
             newEnemy.viewDistance = 600;
             newEnemy.attackRange = 200;
+            newEnemy.attackSpeed = 0.8f; // Ataques por segundo
             newEnemy.entity.maxHP = maxHP;
             newEnemy.entity.currentHP = maxHP;
             break;
         case BOSS:
             newEnemy.viewDistance = 600;
             newEnemy.attackRange = 200;
+            newEnemy.attackSpeed = 0.8f; // Ataques por segundo
             newEnemy.entity.maxHP = maxHP*2;
             newEnemy.entity.currentHP = maxHP*2;
             break;
@@ -396,10 +424,14 @@ void CreateBullet(Entity *entity, Bullet *bulletsPool, enum BULLET_TYPE bulletTy
     for (int i = 0; i < maxNumBullets; i++) {
         Bullet *bullet_i = bulletsPool + i;
         if (!bullet_i->isActive) {
-            bullet_i->position = entity->position;
             bullet_i->srcEntity = srcEntity;
             bullet_i->bulletType = bulletType;
-            bullet_i->direction = entity->animation.isFacingRight;
+            bullet_i->direction = entity->lowerAnimation.isFacingRight;
+            float offset = 0.52f;
+            if (bullet_i->direction == -1)
+                offset = 0.65f;
+            bullet_i->position.x = entity->position.x + bullet_i->direction * offset * entity->width;
+            bullet_i->position.y = entity->position.y;
             bullet_i->width = 20; // Tem que tunar
             bullet_i->height = 7; // Tem que tunar
             bullet_i->power = 40; // Tem que tunar
@@ -435,13 +467,24 @@ Camera2D CreateCamera (Vector2 target, Vector2 offset, float rotation, float zoo
 }
 
 void UpdatePlayer(Player *player, Enemy *enemy, Bullet *bulletPool, float delta, Props *props, float minX) {
-    enum CHARACTER_STATE currentState = player->entity.animation.currentAnimationState;
-    player->entity.animation.timeSinceLastFrame += delta;
+    enum CHARACTER_STATE currentState = player->entity.lowerAnimation.currentAnimationState;
+    player->entity.lowerAnimation.timeSinceLastFrame += delta;
+    player->entity.upperAnimation.timeSinceLastFrame += delta;
 
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     // Handler de input do player                                     ///////////////////////////////////////////////////////////////////////
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    if (player->entity.animation.currentAnimationState != DYING && player->entity.animation.currentAnimationState != HURT && player->entity.animation.currentAnimationState != ATTACKING) {
+    if (player->entity.lowerAnimation.currentAnimationState != DYING) {//} && player->entity.animation.currentAnimationState != HURT && player->entity.animation.currentAnimationState != ATTACKING) {
+        
+        // Registro das teclas "up" e "down". A tecla "up" tem prioridade sobre a "down" por convenção
+        player->entity.upPressed = false;
+        player->entity.downPressed = false;
+        if (IsKeyDown(KEY_UP)) {
+            player->entity.upPressed = true;
+        } else if (IsKeyDown(KEY_DOWN)) {
+            player->entity.downPressed = true;
+        }
+
         if (IsKeyDown(KEY_LEFT)) {
             player->entity.velocity.x -= player->entity.maxXSpeed;
             
@@ -458,18 +501,21 @@ void UpdatePlayer(Player *player, Enemy *enemy, Bullet *bulletPool, float delta,
         }
 
         if (IsKeyPressed(KEY_H))
-            player->entity.animation.currentAnimationState = HURT;
+            player->entity.lowerAnimation.currentAnimationState = HURT;
 
         if (IsKeyPressed(KEY_P))
             player->entity.currentHP = 0;
 
         if (IsKeyPressed(KEY_R)) {
             CreateBullet(&(player->entity), bulletPool, MAGNUM, PLAYER);
-            player->entity.animation.currentAnimationState = ATTACKING;
-            player->entity.animation.currentAnimationFrame = 0;
-            player->entity.animation.timeSinceLastFrame = 0;
-            if (player->entity.isGrounded)
-                player->entity.velocity.x = 0;
+            //player->entity.animation.currentAnimationState = ATTACKING;
+            //player->entity.animation.currentAnimationFrame = 0;
+            //player->entity.animation.timeSinceLastFrame = 0;
+            player->entity.upperAnimation.currentAnimationState = ATTACKING;
+            player->entity.upperAnimation.currentAnimationFrame = 0;
+            player->entity.upperAnimation.timeSinceLastFrame = 0;
+            //if (player->entity.isGrounded)
+            //    player->entity.velocity.x = 0;
         }
     }
 
@@ -490,15 +536,16 @@ void UpdatePlayer(Player *player, Enemy *enemy, Bullet *bulletPool, float delta,
 
     // Atualizar caixa de colisão e retângulo de desenho
     player->entity.drawableRect = (Rectangle) {player->entity.position.x - player->entity.width/2, player->entity.position.y - player->entity.height/2, (int)(player->entity.width * player->entity.characterWidthScale), (int)(player->entity.height * player->entity.characterHeightScale)};
-    player->entity.collisionBox = (Rectangle) {player->entity.position.x  - player->entity.width/2 + (player->entity.animation.isFacingRight == -1 ? 0.3f : 0.15f) * player->entity.width, player->entity.position.y - player->entity.height/2, player->entity.width * 0.5f, player->entity.height};
-    player->entity.collisionHead = (Circle) {(Vector2){player->entity.position.x - player->entity.animation.isFacingRight * 0.1f * player->entity.width, player->entity.position.y - 0.15f * player->entity.height}, player->entity.width * 0.2f};
+    player->entity.collisionBox = (Rectangle) {player->entity.position.x  - player->entity.width/2 + (player->entity.lowerAnimation.isFacingRight == -1 ? 0.3f : 0.15f) * player->entity.width, player->entity.position.y - player->entity.height/2, player->entity.width * 0.5f, player->entity.height};
+    player->entity.collisionHead = (Circle) {(Vector2){player->entity.position.x - player->entity.lowerAnimation.isFacingRight * 0.1f * player->entity.width, player->entity.position.y - 0.15f * player->entity.height}, player->entity.width * 0.2f};
 }
 
 void UpdateEnemy(Enemy *enemy, Player *player, Bullet *bulletPool, float delta, Props *props) {
     Entity *eEnt = &(enemy->entity);
-    enum CHARACTER_STATE currentState = eEnt->animation.currentAnimationState;
-    eEnt->animation.timeSinceLastFrame += delta;
+    enum CHARACTER_STATE currentState = eEnt->lowerAnimation.currentAnimationState;
+    eEnt->lowerAnimation.timeSinceLastFrame += delta;
     enemy->timeSinceLastBehaviorChange += delta;
+    enemy->timeSinceLastAttack += delta;
 
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     // Handler de comportamento do enemy                              ///////////////////////////////////////////////////////////////////////
@@ -517,8 +564,8 @@ void UpdateEnemy(Enemy *enemy, Player *player, Bullet *bulletPool, float delta, 
 
     //eEnt->drawableRect = (Rectangle) {eEnt->position.x - eEnt->width/2, eEnt->position.y - eEnt->height/2, 122,122};
     eEnt->drawableRect = (Rectangle) {eEnt->position.x - eEnt->width/2, eEnt->position.y - eEnt->height/2, eEnt->width * eEnt->characterWidthScale,eEnt->height * eEnt->characterHeightScale};
-    eEnt->collisionBox = (Rectangle) {eEnt->position.x  - eEnt->width/2 + (eEnt->animation.isFacingRight == -1 ? 0.3f : 0.15f) * eEnt->width, eEnt->position.y - eEnt->height/2, eEnt->width * 0.5f, eEnt->height};
-    eEnt->collisionHead = (Circle) {(Vector2){eEnt->position.x - eEnt->animation.isFacingRight * 0.1f * eEnt->width, eEnt->position.y - 0.15f * eEnt->height}, eEnt->width * 0.2f};
+    eEnt->collisionBox = (Rectangle) {eEnt->position.x  - eEnt->width/2 + (eEnt->lowerAnimation.isFacingRight == -1 ? 0.3f : 0.15f) * eEnt->width, eEnt->position.y - eEnt->height/2, eEnt->width * 0.5f, eEnt->height};
+    eEnt->collisionHead = (Circle) {(Vector2){eEnt->position.x - eEnt->lowerAnimation.isFacingRight * 0.1f * eEnt->width, eEnt->position.y - 0.15f * eEnt->height}, eEnt->width * 0.2f};
 }
      
 void UpdateBullets(Bullet *bullet, Enemy *enemy, Player *player, Props *props, float delta) {
@@ -541,7 +588,7 @@ void UpdateBullets(Bullet *bullet, Enemy *enemy, Player *player, Props *props, f
         {
             Enemy *currentEnemy = enemy + i;
             if (currentEnemy->isAlive) {
-                if (currentEnemy->entity.animation.currentAnimationState != DYING) {
+                if (currentEnemy->entity.lowerAnimation.currentAnimationState != DYING) {
                     if (CheckCollisionRecs(currentEnemy->entity.collisionBox, bullet->collisionBox) || CheckCollisionCircleRec(currentEnemy->entity.collisionHead.center, currentEnemy->entity.collisionHead.radius, bullet->collisionBox)) {
                         bullet->isActive = false;
                         HurtEntity(&(currentEnemy->entity), *bullet, 40); // TODO damage
@@ -553,7 +600,6 @@ void UpdateBullets(Bullet *bullet, Enemy *enemy, Player *player, Props *props, f
 
     // Colisão com Player
     if (bullet->srcEntity == ENEMY) {
-        Rectangle playerRect = (Rectangle) {player->entity.position.x, player->entity.position.y, player->entity.animation.animationFrameWidth, player->entity.animation.animationFrameHeight};
         if (CheckCollisionRecs(player->entity.collisionBox, bullet->collisionBox) || CheckCollisionCircleRec(player->entity.collisionHead.center, player->entity.collisionHead.radius, bullet->collisionBox)) {
             bullet->isActive = false;
             // TODO Causa dano ao player
@@ -607,14 +653,15 @@ void UpdateProps(Player *player, Props *props, float delta, float minX) {
     floor->rect.x = minX;
 }
 
-void UpdateBackground(Player *player, Background *backgroundPool, float delta, int *numBackground, float minX, float *maxX) {
+void UpdateBackground(Player *player, Background *backgroundPool, Texture2D srcAtlas, float delta, int *numBackground, float minX, float *maxX) {
 
     for (int i = 0; i < numBackgroundRendered; i++) {
         Background *bgP = backgroundPool + i;
         bgP->position.x = (bgP->originalX - minX*bgP->relativePosition);
         if (bgP->position.x+bgP->width < minX) {
             //"Deletar" bg e criar um novo
-            *bgP = CreateBackground(player, backgroundPool, bgP->bgType, numBackground, 2.0f);
+            UnloadRenderTexture(bgP->canvas);
+            *bgP = CreateBackground(player, backgroundPool, srcAtlas, bgP->bgType, numBackground, 2.0f);
             if (*maxX <= bgP->position.x + bgP->width)
                 *maxX = bgP->position.x + bgP->width;
         }
@@ -629,7 +676,7 @@ void DrawEnemy(Enemy *enemy, Texture2D *texture, bool drawDetectionCollision, bo
         float eyesX = enemy->entity.position.x + enemy->entity.eyesOffset.x;
         float eyesY = enemy->entity.position.y + enemy->entity.eyesOffset.y;
         Rectangle detectionBox;
-        if (enemy->entity.animation.isFacingRight == 1) {
+        if (enemy->entity.lowerAnimation.isFacingRight == 1) {
             detectionBox = (Rectangle){eyesX, eyesY, enemy->viewDistance, 5};
         } else {
             detectionBox = (Rectangle){eyesX-enemy->viewDistance, eyesY, enemy->viewDistance, 5};
@@ -648,19 +695,9 @@ void DrawEnemy(Enemy *enemy, Texture2D *texture, bool drawDetectionCollision, bo
     if (drawCollisionBox) {
         DrawRectangle(enemy->entity.drawableRect.x, enemy->entity.drawableRect.y, enemy->entity.drawableRect.width, enemy->entity.drawableRect.height, RED);
         DrawRectangle(enemy->entity.collisionBox.x, enemy->entity.collisionBox.y, enemy->entity.collisionBox.width, enemy->entity.collisionBox.height, WHITE);
-        DrawCircle(enemy->entity.collisionHead.center.x, enemy->entity.collisionHead.center.y, enemy->entity.collisionHead.radius, WHITE);
+        DrawCircle(enemy->entity.collisionHead.center.x, enemy->entity.collisionHead.center.y, enemy->entity.collisionHead.radius, YELLOW);
     }
-    DrawTexturePro(texture[enemy->class], enemy->entity.animation.currentAnimationFrameRect, enemy->entity.drawableRect, (Vector2) {0, 0}, 0, WHITE);
-
-    char state[30];
-    sprintf(state, "%f", enemy->entity.drawableRect.x);
-    DrawText(state, 0, 650, 20, BLUE);
-    sprintf(state, "%f", enemy->entity.drawableRect.x);
-    DrawText(state, 0, 675, 20, BLUE);
-    sprintf(state, "%f", enemy->entity.drawableRect.width);
-    DrawText(state, 0, 700, 20, BLUE);
-    sprintf(state, "%f", enemy->entity.drawableRect.height);
-    DrawText(state, 0, 725, 20, BLUE);
+    DrawTexturePro(texture[enemy->class], enemy->entity.lowerAnimation.currentAnimationFrameRect, enemy->entity.drawableRect, (Vector2) {0, 0}, 0, WHITE);
 }
 
 void DrawBullet(Bullet *bullet, Texture2D texture, bool drawCollisionBox) {
@@ -669,40 +706,92 @@ void DrawBullet(Bullet *bullet, Texture2D texture, bool drawCollisionBox) {
     if (drawCollisionBox) {
         DrawRectangle(bullet->collisionBox.x, bullet->collisionBox.y, bullet->collisionBox.width, bullet->collisionBox.height, RED);
     }
-
-    char state[30];
-    sprintf(state, "%f", bullet->position.x);
-    DrawText(state, 0, 425, 20, RED);
 }
 
-/*void CreateTexture() {
-    // Define dimensões da imagem
-    int width = 960;
-    int height = 480;
+void DrawPlayer(Player *player, Texture2D texture, bool drawCollisionBox) {
+    // Draw das caixas de colisão
+    if (drawCollisionBox) {
+        DrawRectangle(player->entity.drawableRect.x, player->entity.drawableRect.y, player->entity.drawableRect.width, player->entity.drawableRect.height, RED);
+        DrawRectangle(player->entity.collisionBox.x, player->entity.collisionBox.y, player->entity.collisionBox.width, player->entity.collisionBox.height, WHITE);
+        DrawCircle(player->entity.collisionHead.center.x, player->entity.collisionHead.center.y, player->entity.collisionHead.radius, YELLOW);
+    }
+    DrawTexturePro(texture, player->entity.lowerAnimation.currentAnimationFrameRect, player->entity.drawableRect, (Vector2) {0, 0}, 0, WHITE);
+    DrawTexturePro(texture, player->entity.upperAnimation.currentAnimationFrameRect, player->entity.drawableRect, (Vector2) {0, 0}, 0, WHITE);
+}
 
-    // Aloca memória para os pixels (em tipo Color)
-    Color *pixels = (Color *)malloc(width*height*sizeof(Color));
-
-    // Montagem da imagem
-    for (int y = 0; y < height; y++)
-    {
-        for (int x = 0; x < width; x++)
-        {
-            if (((x/32+y/32)/1)%2 == 0) pixels[y*width + x] = ORANGE;
-            else pixels[y*width + x] = GOLD;
-        }
+RenderTexture2D PaintCanvas(Texture2D atlas, enum BACKGROUND_TYPES bgLayer) {
+    RenderTexture2D canvas;
+    int frameWidth;
+    int frameHeight;
+    int offset;
+    int width;
+    int height;
+    int buildingRow;
+    int buildingCol;
+    switch(bgLayer) {
+        case BACKGROUND:
+            frameWidth = 120;
+            frameHeight = 450;
+            offset = 5;
+            width = 5*(frameWidth+offset);
+            height = screenHeight;
+            buildingRow = 0;
+            buildingCol = 0;
+            canvas = LoadRenderTexture(width, height);
+            BeginTextureMode(canvas);
+            //ClearBackground(RAYWHITE);
+            for (int i = 0; i < 5; i++) { // totalProps max
+                buildingRow = 0;
+                buildingCol = GetRandomValue(0, 3); // 4 Tipos
+                if (GetRandomValue(1,5) >= 2) 
+                    DrawTexturePro(atlas, (Rectangle){buildingCol*frameWidth, buildingRow*frameHeight, frameWidth, frameHeight},
+                        (Rectangle){offset + (i*(offset+frameWidth)), (height - 2*frameHeight - GetRandomValue(20, 100)), frameWidth*1.2f, 2*GetRandomValue(frameHeight-10, frameHeight+10)}, (Vector2) {0, 0}, 0, WHITE);
+            }
+            EndTextureMode();
+        break;
+        case MIDDLEGROUND:
+            frameWidth = 178;
+            frameHeight = 36;
+            offset = 30;
+            width = (2*frameWidth+offset) * 2;
+            height = screenHeight;
+            buildingRow = 0;
+            buildingCol = 0;
+            canvas = LoadRenderTexture(width, height);
+            BeginTextureMode(canvas);
+            for (int j = 0; j < 2; j++) { //2 Unidades por chunk
+                int numFloor = GetRandomValue(6,10);
+                int heightScale = GetRandomValue(-3,3);
+                int widthScale = GetRandomValue(-10,-5);
+                int doubled = GetRandomValue(1,5);
+                for (int i = 0; i < numFloor; i++) {
+                    buildingRow = GetRandomValue(0,5); // 6 tipos
+                    DrawTexturePro(atlas, (Rectangle){0, buildingRow*frameHeight, frameWidth, frameHeight},
+                        (Rectangle){offset + (j*(offset+2*frameWidth+widthScale)), (height - 250) - i*(frameHeight+heightScale), frameWidth + widthScale, frameHeight + heightScale},
+                        (Vector2) {0, 0}, 0, WHITE);
+                    if (doubled < 2) {
+                        buildingRow = GetRandomValue(0,5); // 6 tipos
+                        DrawTexturePro(atlas, (Rectangle){0, buildingRow*frameHeight, -frameWidth, frameHeight},
+                            (Rectangle){offset + frameWidth +widthScale+ (j*(offset+2*frameWidth+widthScale)), (height - 250) - i*(frameHeight+heightScale), frameWidth + widthScale, frameHeight + heightScale},
+                            (Vector2) {0, 0}, 0, WHITE);
+                    }
+                }
+            }
+            EndTextureMode();
+        break;
+        case FOREGROUND:
+            frameWidth = 704;
+            frameHeight = 192;
+            width = 704;
+            height = screenHeight;
+            canvas = LoadRenderTexture(width, height);
+            BeginTextureMode(canvas);
+                DrawTexturePro(atlas, (Rectangle){0, 0, frameWidth, frameHeight},
+                    (Rectangle){0, (height - 150) - (frameHeight*1.5f), frameWidth, frameHeight*1.5f}, // deslocado 150 pixels acima do fundo da tela
+                    (Vector2) {0, 0}, 0, WHITE);
+            EndTextureMode();
+        break;
     }
 
-    // Transformar em Imagem (nesse momento ela vai para a CPU)
-    Image checkedIm = {
-        .data = pixels,             // We can assign pixels directly to data
-        .width = width,
-        .height = height,
-        .format = UNCOMPRESSED_R8G8B8A8,
-        .mipmaps = 1
-    };
-
-    Texture2D checked = LoadTextureFromImage(checkedIm); // Lembrar do Dump da GPU no final do código...
-    UnloadImage(checkedIm);         // Dump da imagem na CPU
+    return canvas;
 }
-*/
