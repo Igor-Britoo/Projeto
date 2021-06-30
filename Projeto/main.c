@@ -14,7 +14,8 @@ int main(void) {
     Texture2D miscAtlas = LoadTexture("resources/Atlas/misc_atlas.png");        
     Texture2D backgroundAtlas = LoadTexture("resources/Atlas/background_atlas.png");        
     Texture2D midgroundAtlas = LoadTexture("resources/Atlas/midground_atlas.png");        
-    Texture2D foregroundAtlas = LoadTexture("resources/Background/cyberpunk_street_foreground.png");
+    //Texture2D foregroundAtlas = LoadTexture("resources/Background/cyberpunk_street_foreground.png");     
+    Texture2D foregroundAtlas = LoadTexture("resources/Atlas/foreground_atlas.png");
     Texture2D *enemyTex = (Texture2D *)malloc(numEnemyClasses*sizeof(Texture2D));
     enemyTex[SWORDSMAN] = LoadTexture("resources/Atlas/hero_atlas.png");
     enemyTex[GUNNER] = LoadTexture("resources/Atlas/hero_atlas.png");
@@ -56,7 +57,7 @@ int main(void) {
     for (int i = 0; i < maxNumProps; i++) {
         propsPool[i].isActive = false;
     } 
-    propsPool[0] = (Props){(Rectangle){0,screenHeight-165,screenWidth*3,5}, 1, 0, 1, true};
+    propsPool[0] = (Props){(Rectangle){0,screenHeight-150,screenWidth*3,5}, 1, 0, 1, true};
 
     // Enemy Init
     Enemy *enemyPool = (Enemy *)malloc(maxNumEnemies*sizeof(Enemy));
@@ -456,7 +457,6 @@ void CreateBullet(Entity *entity, Bullet *bulletsPool, enum BULLET_TYPE bulletTy
 
             bullet_i->drawableRect = (Rectangle) {bullet_i->position.x, bullet_i->position.y, abs(bullet_i->animation.currentAnimationFrameRect.width), abs(bullet_i->animation.currentAnimationFrameRect.height)};
             bullet_i->collisionBox = (Rectangle) {bullet_i->position.x - bullet_i->width/2, bullet_i->position.y - bullet_i->height/2, bullet_i->width, bullet_i->height};
-            //bullet_i->collisionCircle = (Circle) {(Vector2) {bullet_i->position.x + (bullet_i->direction.x == -1 ? -abs(bullet_i->animation.animationFrameWidth) + 20 : 0) + 40, bullet_i->position.y - 12 + (bullet_i->direction.y == -1 ? -abs(bullet_i->animation.animationFrameHeight/4) : (bullet_i->direction.y == 1) ? abs(bullet_i->animation.animationFrameHeight/4) : 0)}, 7};
 
             return;
         }
@@ -514,13 +514,15 @@ void UpdatePlayer(Player *player, Enemy *enemy, Bullet *bulletPool, float delta,
             player->entity.currentHP = 0;
 
         if (IsKeyPressed(KEY_R)) {
-            CreateBullet(&(player->entity), bulletPool, MAGNUM, PLAYER);
+            if (player->entity.upperAnimation.currentAnimationState != ATTACKING || (player->entity.upperAnimation.currentAnimationState == ATTACKING && player->entity.upperAnimation.currentAnimationFrame > 1)) {
+                CreateBullet(&(player->entity), bulletPool, MAGNUM, PLAYER);
+                player->entity.upperAnimation.currentAnimationState = ATTACKING;
+                player->entity.upperAnimation.currentAnimationFrame = 0;
+                player->entity.upperAnimation.timeSinceLastFrame = 0;
+            }
             //player->entity.animation.currentAnimationState = ATTACKING;
             //player->entity.animation.currentAnimationFrame = 0;
             //player->entity.animation.timeSinceLastFrame = 0;
-            player->entity.upperAnimation.currentAnimationState = ATTACKING;
-            player->entity.upperAnimation.currentAnimationFrame = 0;
-            player->entity.upperAnimation.timeSinceLastFrame = 0;
             //if (player->entity.isGrounded)
             //    player->entity.velocity.x = 0;
         }
@@ -798,19 +800,19 @@ RenderTexture2D PaintCanvas(Texture2D atlas, enum BACKGROUND_TYPES bgLayer) {
             canvas = LoadRenderTexture(width, height);
             BeginTextureMode(canvas);
             for (int j = 0; j < 2; j++) { //2 Unidades por chunk
-                int numFloor = GetRandomValue(6,10);
+                int numFloor = GetRandomValue(10,15);
                 int heightScale = GetRandomValue(-3,3);
                 int widthScale = GetRandomValue(-10,-5);
                 int doubled = GetRandomValue(1,5);
                 for (int i = 0; i < numFloor; i++) {
                     buildingRow = GetRandomValue(0,5); // 6 tipos
                     DrawTexturePro(atlas, (Rectangle){0, buildingRow*frameHeight, frameWidth, frameHeight},
-                        (Rectangle){offset + (j*(offset+2*frameWidth+widthScale)), (height - 250) - i*(frameHeight+heightScale), frameWidth + widthScale, frameHeight + heightScale},
+                        (Rectangle){offset + (j*(offset+2*frameWidth+widthScale)), (height - 150) - i*(frameHeight+heightScale), frameWidth + widthScale, frameHeight + heightScale},
                         (Vector2) {0, 0}, 0, WHITE);
                     if (doubled < 2) {
                         buildingRow = GetRandomValue(0,5); // 6 tipos
                         DrawTexturePro(atlas, (Rectangle){0, buildingRow*frameHeight, -frameWidth, frameHeight},
-                            (Rectangle){offset + frameWidth +widthScale+ (j*(offset+2*frameWidth+widthScale)), (height - 250) - i*(frameHeight+heightScale), frameWidth + widthScale, frameHeight + heightScale},
+                            (Rectangle){offset + frameWidth +widthScale+ (j*(offset+2*frameWidth+widthScale)), (height - 150) - i*(frameHeight+heightScale), frameWidth + widthScale, frameHeight + heightScale},
                             (Vector2) {0, 0}, 0, WHITE);
                     }
                 }
@@ -818,15 +820,53 @@ RenderTexture2D PaintCanvas(Texture2D atlas, enum BACKGROUND_TYPES bgLayer) {
             EndTextureMode();
         break;
         case FOREGROUND:
-            frameWidth = 704;
-            frameHeight = 192;
-            width = 704;
+            frameWidth = 200;
+            frameHeight = 200;
+            int overhang = 0;
+            int buildingRow = 0;
+            int numFloor = GetRandomValue(2,4);
+            int tilesWidth = GetRandomValue(3,5);
+            bool hasDoor = false;
+            int isFlipped = 1;
+            int style = GetRandomValue(0,1); // 2 estilos
+            width = screenWidth;
             height = screenHeight;
             canvas = LoadRenderTexture(width, height);
             BeginTextureMode(canvas);
-                DrawTexturePro(atlas, (Rectangle){0, 0, frameWidth, frameHeight},
-                    (Rectangle){0, (height - 150) - (frameHeight*1.5f), frameWidth, frameHeight*1.5f}, // deslocado 150 pixels acima do fundo da tela
-                    (Vector2) {0, 0}, 0, WHITE);
+            for (int i = 0; i < numFloor; i++) {
+                for (int j = 0; j < tilesWidth; j++) {
+                    overhang = 0;
+                    if (j == 0) {
+                        buildingRow = 0;
+                        isFlipped = 1;
+                    } else if (j == tilesWidth - 1) {
+                        buildingRow = 0;
+                        isFlipped = -1;
+                    } else {
+                        if (i == 0) {
+                            if (j == tilesWidth - 2 && !hasDoor) {
+                                buildingRow = 1;
+                            } else {
+                                if (!hasDoor) {
+                                    buildingRow = (GetRandomValue(0,3) == 0 ? 1 : 2);
+                                    if (buildingRow == 1) {
+                                        hasDoor = true;
+                                    }
+                                }
+                            }
+                        } else {
+                            buildingRow = (GetRandomValue(0,3) == 0 ? 3 : 2);
+                        }
+                    }
+                    if (i == numFloor - 1) {
+                        overhang = 7;
+                        buildingRow = 4;
+                    }
+                    DrawTexturePro(atlas, (Rectangle){style*frameWidth, buildingRow*frameHeight, isFlipped*frameWidth, frameHeight},
+                        (Rectangle){100+j*frameHeight-overhang, (height - 150) - (i+1)*(frameHeight), frameWidth+2*overhang, frameHeight}, // deslocado 150 pixels acima do fundo da tela
+                        (Vector2) {0, 0}, 0, WHITE);
+                }
+            }
             EndTextureMode();
         break;
     }
