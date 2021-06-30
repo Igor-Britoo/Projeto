@@ -26,7 +26,7 @@ const static int numEnemyClasses = 6;
 const int screenWidth = 1920;
 const int screenHeight = 1080;
 const char gameName[30] = "Project N30-N";
-bool isFullscreen = true;
+bool isFullscreen = false;
 
 // Structs
 typedef struct circle {
@@ -142,10 +142,11 @@ typedef struct particle {
 
 typedef struct bullet {
     Vector2 position;
+    float angle;
     Animation animation;
     enum ENTITY_TYPES srcEntity;
     enum BULLET_TYPE bulletType;
-    int direction;
+    Vector2 direction;
     int width;
     int height;
     float power;
@@ -397,7 +398,6 @@ void PhysicsAndGraphicsHandlers (Entity *entity, float delta, enum CHARACTER_STA
 
     int lAnimRow = 0;
     int uAnimRow = 0;
-    int mvForward = 0;
 
     if (currentState != lowerAnimation->currentAnimationState) {
         lowerAnimation->timeSinceLastFrame = 0.0f;
@@ -461,20 +461,10 @@ void PhysicsAndGraphicsHandlers (Entity *entity, float delta, enum CHARACTER_STA
         //PlayEntityAnimation(entity, delta, animation, 7, false, false, -1, false, DYING);
         break;
     case ATTACKING:
-        mvForward = 0;
-        if (entity->velocity.x != 0) mvForward = 1;
         if (entity->upPressed) {
-            if (mvForward == 1) {
                 uAnimRow = 5;
-            } else {
-                uAnimRow = 7;
-            }
         } else if (entity->downPressed) {
-            if (mvForward == 1) {
                 uAnimRow = 6;
-            } else {
-                uAnimRow = 7;
-            }
         } else {
             uAnimRow = 7;
         }
@@ -534,6 +524,6 @@ void HurtEntity(Entity *dstEntity, Bullet srcBullet, float damage) {
     dstEntity->lowerAnimation.currentAnimationState = HURT;
     dstEntity->lowerAnimation.timeSinceLastFrame = 0;
     dstEntity->lowerAnimation.currentAnimationFrame = 0;
-    dstEntity->lowerAnimation.isFacingRight = -srcBullet.direction;
+    dstEntity->lowerAnimation.isFacingRight = -srcBullet.direction.x;
     dstEntity->currentHP -= damage;
 }
