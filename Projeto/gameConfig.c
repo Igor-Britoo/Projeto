@@ -18,7 +18,7 @@ enum ENEMY_CLASSES{SWORDSMAN, GUNNER, SNIPERSHOOTER, DRONE, TURRET, BOSS};
 // Consts
 const float GRAVITY = 400; // 400 px / f²
 const float bulletLifeTime = 4; // 4 s
-const static int numBackgroundRendered = 5;
+const static int numBackgroundRendered = 7;
 const static int maxNumBullets = 100;
 const static int maxNumEnemies = 20;
 const static int maxNumProps = 20;

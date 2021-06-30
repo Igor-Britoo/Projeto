@@ -701,6 +701,9 @@ void UpdateBackground(Player *player, Background *backgroundPool, Texture2D srcA
         bgP->position.x = (bgP->originalX - minX*bgP->relativePosition);
         if (bgP->position.x+bgP->width < minX) {
             //"Deletar" bg e criar um novo
+            BeginTextureMode(bgP->canvas);
+            ClearBackground(GetColor(0x052c46ff));
+            EndTextureMode();
             UnloadRenderTexture(bgP->canvas);
             *bgP = CreateBackground(player, backgroundPool, srcAtlas, bgP->bgType, numBackground, 2.0f);
             if (*maxX <= bgP->position.x + bgP->width)
@@ -773,14 +776,14 @@ RenderTexture2D PaintCanvas(Texture2D atlas, enum BACKGROUND_TYPES bgLayer) {
             frameWidth = 120;
             frameHeight = 450;
             offset = 5;
-            width = 5*(frameWidth+offset);
+            width = screenWidth;
             height = screenHeight;
             buildingRow = 0;
             buildingCol = 0;
             canvas = LoadRenderTexture(width, height);
             BeginTextureMode(canvas);
             //ClearBackground(RAYWHITE);
-            for (int i = 0; i < 5; i++) { // totalProps max
+            for (int i = 0; i < 14; i++) { // totalProps max
                 buildingRow = 0;
                 buildingCol = GetRandomValue(0, 3); // 4 Tipos
                 if (GetRandomValue(1,5) >= 2) 
@@ -793,13 +796,13 @@ RenderTexture2D PaintCanvas(Texture2D atlas, enum BACKGROUND_TYPES bgLayer) {
             frameWidth = 178;
             frameHeight = 36;
             offset = 30;
-            width = (2*frameWidth+offset) * 2;
+            width = screenWidth;
             height = screenHeight;
             buildingRow = 0;
             buildingCol = 0;
             canvas = LoadRenderTexture(width, height);
             BeginTextureMode(canvas);
-            for (int j = 0; j < 2; j++) { //2 Unidades por chunk
+            for (int j = 0; j < 4; j++) { //2 Unidades por chunk
                 int numFloor = GetRandomValue(10,15);
                 int heightScale = GetRandomValue(-3,3);
                 int widthScale = GetRandomValue(-10,-5);
@@ -824,7 +827,7 @@ RenderTexture2D PaintCanvas(Texture2D atlas, enum BACKGROUND_TYPES bgLayer) {
             frameHeight = 200;
             int overhang = 0;
             int buildingRow = 0;
-            int numFloor = GetRandomValue(2,4);
+            int numFloor = GetRandomValue(3,4);
             int tilesWidth = GetRandomValue(3,5);
             bool hasDoor = false;
             int isFlipped = 1;
@@ -852,6 +855,8 @@ RenderTexture2D PaintCanvas(Texture2D atlas, enum BACKGROUND_TYPES bgLayer) {
                                     if (buildingRow == 1) {
                                         hasDoor = true;
                                     }
+                                } else {
+                                    buildingRow = 2;
                                 }
                             }
                         } else {
