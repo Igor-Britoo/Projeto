@@ -52,8 +52,9 @@ int main(void) {
     for (int i = 0; i < maxNumEnvProps; i++) {
         envPropsPool[i].isActive = false;
     } 
-    CreateEnvProp(envPropsPool, groundPool, (Vector2) {800, screenHeight-150-200}, 200, 200, true);
-    CreateEnvProp(envPropsPool, groundPool, (Vector2) {1200, screenHeight-150-200-300}, 200, 200, true);
+    CreateEnvProp(envPropsPool, groundPool, METAL_CRATE, (Vector2) {800, screenHeight-150-200}, 200, 200, true);
+    CreateEnvProp(envPropsPool, groundPool, HP_CRATE, (Vector2) {1200, screenHeight-150-200-300}, 200, 200, true);
+    CreateEnvProp(envPropsPool, groundPool, CARD_CRATE1, (Vector2) {1600, screenHeight-150-200}, 200, 200, true);
 
     // Pool de backgrounds. Sempre que um "sai" da tela, é destruído e um novo é gerado no "final" do mapa, mantendo sempre apenas 3 chunks
     Background *nearBackgroundPool = (Background *)malloc(numBackgroundRendered*sizeof(Background));
@@ -86,12 +87,12 @@ int main(void) {
         float deltaTime = GetFrameTime();
 
         // Atualizar player
-        UpdatePlayer(&player, enemyPool, bulletsPool, deltaTime, groundPool, camMinX);
+        UpdatePlayer(&player, enemyPool, bulletsPool, deltaTime, groundPool, envPropsPool, camMinX);
 
         // Atualizar balas
         for (int i = 0; i < maxNumBullets; i++) {
             if (bulletsPool[i].isActive)
-                UpdateBullets(&bulletsPool[i], enemyPool, &player, groundPool, deltaTime);
+                UpdateBullets(&bulletsPool[i], enemyPool, &player, groundPool, envPropsPool, deltaTime);
         }
 
         // Atualizar limites de câmera e posição
@@ -113,7 +114,7 @@ int main(void) {
         // Atualizar inimigos
         for (int i = 0; i < maxNumEnemies; i++) {
             if (enemyPool[i].isAlive)
-                UpdateEnemy(enemyPool, &player, bulletsPool, deltaTime, groundPool);
+                UpdateEnemy(enemyPool, &player, bulletsPool, deltaTime, groundPool, envPropsPool);
         }
 
         // Draw cycle
@@ -149,7 +150,7 @@ int main(void) {
                 //EnvProps
                 for (int i = 0; i < maxNumEnvProps; i++) {
                     if (envPropsPool[i].isActive) {
-                        DrawTexturePro(envPropsAtlas, (Rectangle) {0, 0, 200, 200}, envPropsPool[i].drawableRect, (Vector2) {0, 0}, 0, WHITE);
+                        DrawTexturePro(envPropsAtlas, envPropsPool[i].frameRect, envPropsPool[i].drawableRect, (Vector2) {0, 0}, 0, WHITE);
                     }
                 }   
 
@@ -491,17 +492,87 @@ void CreateGround(Ground *groundPool, Vector2 position, int width, int height, b
     }
 }
 
-void CreateEnvProp(EnvProps *envPropsPool, Ground *groundPool, Vector2 position, int width, int height, bool isActive) {
+void CreateEnvProp(EnvProps *envPropsPool, Ground *groundPool, enum OBJECTS_TYPES obType, Vector2 position, int width, int height, bool isActive) {
     for (int i = 0; i < maxNumEnvProps; i++) {
          EnvProps *curProp = envPropsPool + i;
          if (!curProp->isActive) {
-             curProp->groundRect = (Rectangle) {position.x, position.y, width, height};
-             CreateGround(groundPool, (Vector2){position.x, position.y}, width, height, true, false, true, true, true);
-             curProp->drawableRect = (Rectangle) {position.x, position.y, width, height};
-             curProp->collisionRect = (Rectangle) {position.x, position.y, width, height};
-             curProp->isDestroyable = false;
-             curProp->isCollectable = false;
-             curProp->isActive = isActive;
+             bool canBeStepped;
+             bool followCamera = false;;
+             bool blockPlayer;
+             bool isInvisible = true; // o ground 
+             bool isActive = true; // o ground
+             int frameX, frameY, frameW, frameH;
+             switch (obType)
+             {
+             case METAL_CRATE:
+                frameX = OBJECTS_METAL_CRATE[0];
+                frameY = OBJECTS_METAL_CRATE[1];
+                curProp->type = obType;
+                curProp->groundRect = (Rectangle) {position.x, position.y, width, height};
+                curProp->isDestroyable = false;
+                curProp->isCollectable = false;
+                canBeStepped = true;
+                blockPlayer = true;
+                 break;
+             case AMMO_CRATE:
+                frameX = OBJECTS_AMMO_CRATE[0];
+                frameY = OBJECTS_AMMO_CRATE[1];
+                curProp->groundRect = (Rectangle) {position.x, position.y, width, height};
+                curProp->isDestroyable = false;
+                curProp->isCollectable = true;
+                canBeStepped = false;
+                blockPlayer = false;
+                width *= 0.9f;
+                height *= 0.9f;
+                 break;
+             case HP_CRATE:
+                frameX = OBJECTS_HP_CRATE[0];
+                frameY = OBJECTS_HP_CRATE[1];
+                curProp->groundRect = (Rectangle) {position.x, position.y, width, height};
+                curProp->isDestroyable = false;
+                curProp->isCollectable = true;
+                canBeStepped = false;
+                blockPlayer = false;
+                width *= 0.9f;
+                height *= 0.9f;
+                 break;
+            case CARD_CRATE1:
+                frameX = OBJECTS_CARD_CRATE1[0];
+                frameY = OBJECTS_CARD_CRATE1[1];
+                curProp->groundRect = (Rectangle) {position.x + 0.15f * width, position.y + 0.3f * height, 0.7f * width, 0.7f * height};
+                curProp->isDestroyable = true;
+                curProp->isCollectable = false;
+                canBeStepped = true;
+                blockPlayer = true;
+                 break;
+             case CARD_CRATE2:
+                frameX = OBJECTS_CARD_CRATE2[0];
+                frameY = OBJECTS_CARD_CRATE2[1];
+                curProp->groundRect = (Rectangle) {position.x, position.y + height/2, width, height/2};
+                curProp->isDestroyable = true;
+                curProp->isCollectable = false;
+                canBeStepped = true;
+                blockPlayer = true;
+                 break;
+             case CARD_CRATE3:
+                frameX = OBJECTS_CARD_CRATE3[0];
+                frameY = OBJECTS_CARD_CRATE3[1];
+                curProp->groundRect = (Rectangle) {position.x, position.y + height/2, width, height/2};
+                curProp->isDestroyable = true;
+                curProp->isCollectable = false;
+                canBeStepped = true;
+                blockPlayer = true;
+                 break;
+             default:
+                 break;
+             }
+            frameW = OBJECTS_GRID[0];
+            frameH = OBJECTS_GRID[1];
+            curProp->type = obType;
+            curProp->frameRect = (Rectangle) {frameX * frameW, frameY * frameH, frameW, frameH};
+            CreateGround(groundPool, (Vector2){curProp->groundRect.x, curProp->groundRect.y}, curProp->groundRect.width, curProp->groundRect.height, canBeStepped, followCamera, blockPlayer, isInvisible, isActive);
+            curProp->drawableRect = (Rectangle) {position.x, position.y, width, height};
+            curProp->isActive = isActive;
 
              return;
         }
@@ -518,7 +589,7 @@ Camera2D CreateCamera (Vector2 target, Vector2 offset, float rotation, float zoo
     return newCam;
 }
 
-void UpdatePlayer(Player *player, Enemy *enemy, Bullet *bulletPool, float delta, Ground *ground, float minX) {
+void UpdatePlayer(Player *player, Enemy *enemy, Bullet *bulletPool, float delta, Ground *ground, EnvProps *envProps, float minX) {
     enum CHARACTER_STATE currentState = player->entity.lowerAnimation.currentAnimationState;
     player->entity.lowerAnimation.timeSinceLastFrame += delta;
     player->entity.upperAnimation.timeSinceLastFrame += delta;
@@ -576,7 +647,7 @@ void UpdatePlayer(Player *player, Enemy *enemy, Bullet *bulletPool, float delta,
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     // Handler de colisão do player                                   ///////////////////////////////////////////////////////////////////////
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    EntityCollisionHandler(&(player->entity), ground, delta);
+    EntityCollisionHandler(&(player->entity), ground, envProps, delta);
 
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     // Handler de física e gráfico do player                          ///////////////////////////////////////////////////////////////////////
@@ -597,12 +668,9 @@ void UpdatePlayer(Player *player, Enemy *enemy, Bullet *bulletPool, float delta,
     player->entity.drawableRect = (Rectangle) {player->entity.position.x, player->entity.position.y, (int)(player->entity.width * player->entity.characterWidthScale), (int)(player->entity.height * player->entity.characterHeightScale)};
     player->entity.collisionBox = (Rectangle) {player->entity.position.x  - player->entity.width/2 + (player->entity.lowerAnimation.isFacingRight == -1 ? 0.43f : 0.23f) * player->entity.width, player->entity.position.y - player->entity.height/2, player->entity.width * 0.35f, player->entity.height};
     player->entity.collisionHead = (Circle) {(Vector2){player->entity.position.x - player->entity.lowerAnimation.isFacingRight * 0.1f * player->entity.width, player->entity.position.y - 0.15f * player->entity.height}, player->entity.width * 0.2f};
-char state[30];
-                        sprintf(state, "%f", (player->entity.position.x - player->entity.collisionBox.x));
-                        DrawText(state, 0, 150, 20, BLUE);
 }
 
-void UpdateEnemy(Enemy *enemy, Player *player, Bullet *bulletPool, float delta, Ground *ground) {
+void UpdateEnemy(Enemy *enemy, Player *player, Bullet *bulletPool, float delta, Ground *ground, EnvProps *envProps) {
     Entity *eEnt = &(enemy->entity);
     enum CHARACTER_STATE currentState = eEnt->lowerAnimation.currentAnimationState;
     eEnt->lowerAnimation.timeSinceLastFrame += delta;
@@ -617,7 +685,7 @@ void UpdateEnemy(Enemy *enemy, Player *player, Bullet *bulletPool, float delta, 
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     // Handler de colisão do enemy                                    ///////////////////////////////////////////////////////////////////////
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    EntityCollisionHandler(&(enemy->entity), ground, delta);
+    EntityCollisionHandler(&(enemy->entity), ground, envProps, delta);
 
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     // Handler de física e gráfico do enemy                           ///////////////////////////////////////////////////////////////////////
@@ -629,20 +697,35 @@ void UpdateEnemy(Enemy *enemy, Player *player, Bullet *bulletPool, float delta, 
     eEnt->collisionHead = (Circle) {(Vector2){eEnt->position.x - eEnt->lowerAnimation.isFacingRight * 0.1f * eEnt->width, eEnt->position.y - 0.15f * eEnt->height}, eEnt->width * 0.2f};
 }
      
-void UpdateBullets(Bullet *bullet, Enemy *enemy, Player *player, Ground *ground, float delta) {
+void UpdateBullets(Bullet *bullet, Enemy *enemy, Player *player, Ground *ground, EnvProps *envProp, float delta) {
     bullet->lifeTime += delta;
     bullet->animation.timeSinceLastFrame += delta;
     // Checar colisão
-    // Props
+    // Grounds
     for (int i = 0; i < maxNumGrounds; i++)
     {
         Ground *curGround = ground + i;
         if (curGround->isActive) {
             if (CheckCollisionRecs(curGround->rect, bullet->collisionBox)) {
-                bullet->isActive = false;
+                for (int j = 0; j < maxNumEnvProps; j++) {
+                    EnvProps *curProp = envProp + j;
+                    if (curProp->isActive) {
+                        if (CheckCollisionRecs(curProp->groundRect, bullet->collisionBox)) {
+                            bullet->isActive = false;
+                            if (curProp->isDestroyable) {
+                                if (GetRandomValue(1,3) == 1) {
+                                    curProp->isActive = false;
+                                    curGround->isActive = false;
+                                }
+                            }
+                        }
+                    }
+                }
             }
         }
     }
+    // Props
+
     // Colisão com inimigos
     if (bullet->srcEntity == PLAYER) {
         for (int i = 0; i < maxNumEnemies; i++)

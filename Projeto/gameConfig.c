@@ -17,6 +17,7 @@ enum MIDDLEGROUND_STYLE{COMPLEX, RED_BUILDING};
 enum FOREGROUND_STYLE{RESIDENTIAL};
 enum BULLET_TYPE{MAGNUM, SNIPER, LASER};
 enum ENEMY_CLASSES{SWORDSMAN, GUNNER, SNIPERSHOOTER, DRONE, TURRET, BOSS};
+enum OBJECTS_TYPES {METAL_CRATE, AMMO_CRATE, HP_CRATE, CARD_CRATE1, CARD_CRATE2, CARD_CRATE3, TRASH_BIN, EXPLOSIVE_BARREL, METAL_BARREL, GARBAGE_BAG1, GARBAGE_BAG2, TRASH_CONTAINER, ROAD_BLOCK};
 
 // Consts
 const float GRAVITY = 400; // 400 px / f²
@@ -177,7 +178,6 @@ typedef struct envProps {
     Rectangle frameRect;
     enum OBJECTS_TYPES type;
     Rectangle drawableRect;
-    Rectangle collisionRect; 
     bool isDestroyable;
     bool isCollectable;
     bool isActive;
@@ -187,7 +187,7 @@ typedef struct envProps {
 Texture2D CreateTexture(enum BACKGROUND_TYPES bgLayer, Image srcAtlas);
 void CreateBullet(Entity *entity, Bullet *bulletsPool, enum BULLET_TYPE bulletType, enum ENTITY_TYPES srcEntity);
 void CreateGround(Ground *groundPool, Vector2 position, int width, int height, bool canBeStepped, bool followCamera, bool blockPlayer, bool isInvisible, bool isActive);
-void CreateEnvProp(EnvProps *envPropsPool, Ground *groundPool, Vector2 position, int width, int height, bool isActive);
+void CreateEnvProp(EnvProps *envPropsPool, Ground *groundPool, enum OBJECTS_TYPES obType, Vector2 position, int width, int height, bool isActive);
 Background CreateBackground(Player *player, Background *backgroundPool, Ground *groundPool, Texture2D srcAtlas, enum BACKGROUND_TYPES bgType, int *numBackground);
 Camera2D CreateCamera (Vector2 target, Vector2 offset, float rotation, float zoom);
 Player CreatePlayer(int maxHP, Vector2 position, int width, int height);
@@ -195,9 +195,9 @@ Enemy CreateEnemy(enum ENEMY_CLASSES class, int maxHP, Vector2 position, int wid
 
 void UpdateBackground(Player *player, Background *backgroundPool, Texture2D srcAtlas, Ground *groundPool, float delta, int *numBackground, float minX, float *maxX);
 void UpdateClampedCameraPlayer(Camera2D *camera, Player *player, float delta, int width, int height, float *minX, float maxX);
-void UpdatePlayer(Player *player, Enemy *enemy, Bullet *bulletPool, float delta, Ground *ground, float minX);
-void UpdateBullets(Bullet *bullet, Enemy *enemy, Player *player, Ground *ground, float delta);
-void UpdateEnemy(Enemy *enemy, Player *player, Bullet *bulletPool, float delta, Ground *ground);
+void UpdatePlayer(Player *player, Enemy *enemy, Bullet *bulletPool, float delta, Ground *ground, EnvProps *envProps, float minX);
+void UpdateBullets(Bullet *bullet, Enemy *enemy, Player *player, Ground *ground, EnvProps *envProp, float delta);
+void UpdateEnemy(Enemy *enemy, Player *player, Bullet *bulletPool, float delta, Ground *ground, EnvProps *envProps);
 void UpdateGrounds(Player *player, Ground *ground, float delta, float minX);
 void UpdateEnvProps(Player *player, EnvProps *envPropsPool, float delta, float minX);
 
@@ -516,11 +516,9 @@ void PhysicsAndGraphicsHandlers (Entity *entity, float delta, enum CHARACTER_STA
     entity->upperAnimation.currentAnimationFrameRect.width = entity->lowerAnimation.isFacingRight * entity->upperAnimation.animationFrameWidth;
 }
 
-void EntityCollisionHandler(Entity *entity, Ground *ground, float delta) {
-    // Colisão com props                                            ///////////////////////////////////////////////////////////////////////
+void EntityCollisionHandler(Entity *entity, Ground *ground, EnvProps *envProp, float delta) {
+    // Colisão com grounds                                            ///////////////////////////////////////////////////////////////////////
     int hitObstacle = 0;
-    Rectangle prectGrav = entity->collisionBox;
-    prectGrav.y += 1;
     for (int i = 0; i < maxNumGrounds; i++)
     {
         Ground *curGround = ground + i;
@@ -571,7 +569,6 @@ void EntityCollisionHandler(Entity *entity, Ground *ground, float delta) {
                         }
                     }
                 }
-
             }
         }
     }
@@ -584,6 +581,23 @@ void EntityCollisionHandler(Entity *entity, Ground *ground, float delta) {
         entity->isGrounded = false;
     } else {
         entity->isGrounded = true;
+    }
+
+    // Colisão com grounds                                            ///////////////////////////////////////////////////////////////////////
+    for (int i = 0; i < maxNumEnvProps; i++)
+    {
+        EnvProps *curProp = envProp + i;
+        if (curProp->isActive) {
+            Rectangle *eCol = &(entity->collisionBox);
+            Vector2 *eVel = &(entity->velocity);
+            Rectangle futureBox = (Rectangle) {eCol->x + eVel->x * delta, eCol->y + eVel->y * delta, eCol->width, eCol->height};
+            if (curProp->isCollectable) {
+                if (CheckCollisionRecs(curProp->groundRect, futureBox)) {
+                    // TODO dar o benefício
+                    curProp->isActive = false;
+                }
+            }
+        }
     }
 
 }

@@ -24,9 +24,6 @@ int static PLAYER_BODY_WALKING_NUM_FRAMES = 8;
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Objects frames //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-typedef enum OBJECTS_TYPES {METAL_CRATE, AMMO_CRATE, HP_CRATE, CARD_CRATE1, CARD_CRATE2, CARD_CRATE3, TRASH_BIN, EXPLOSIVE_BARREL, METAL_BARREL,
-                            GARBAGE_BAG1, GARBAGE_BAG2, TRASH_CONTAINER, ROAD_BLOCK};
-
 int static OBJECTS_GRID[2] = {200, 200};
 int static OBJECTS_METAL_CRATE[2] = {0, 0};
 int static OBJECTS_AMMO_CRATE[2] = {0, 1};
@@ -38,7 +35,7 @@ int static OBJECTS_TRASH_BIN[2] = {1, 0};
 int static OBJECTS_EXPLOSIVE_BARREL[2] = {1, 1};
 int static OBJECTS_METAL_BARREL[2] = {1, 2};
 int static OBJECTS_GARBAGE_BAG1[2] = {1, 3};
-int static OBJECTS_GARBAGE_BAG1[2] = {1, 4};
+int static OBJECTS_GARBAGE_BAG2[2] = {1, 4};
 int static OBJECTS_TRASH_CONTAINER_RECT[4] = {2, 0, 3, 2};
 int static OBJECTS_ROAD_BLOCK_RECT[4] = {2, 2, 3, 2};
 
