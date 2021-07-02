@@ -1,4 +1,5 @@
 #include "gameConfig.c"
+#include "frameMapping.c"
 
 int main(void) {
     if (isFullscreen) SetConfigFlags(FLAG_FULLSCREEN_MODE); // Fullscreen
@@ -6,14 +7,12 @@ int main(void) {
     SetTargetFPS(60);
 
     // Load assets
-    Texture2D backgroundTex = LoadTexture("resources/Background/cyberpunk_street_background.png");
-    Texture2D midgroundTex = LoadTexture("resources/Background/cyberpunk_street_midground.png");
-    Texture2D foregroundTex = LoadTexture("resources/Background/cyberpunk_street_foreground.png");
     Texture2D characterTex = LoadTexture("resources/Atlas/hero_atlas.png");    
     Texture2D characterTexDiv = LoadTexture("resources/Atlas/hero_atlas_div.png");    
     Texture2D miscAtlas = LoadTexture("resources/Atlas/misc_atlas.png");        
     Texture2D backgroundAtlas = LoadTexture("resources/Atlas/background_atlas.png");        
     Texture2D midgroundAtlas = LoadTexture("resources/Atlas/midground_atlas.png");        
+    Texture2D envPropsAtlas = LoadTexture("resources/Atlas/env_props_atlas.png");        
     //Texture2D foregroundAtlas = LoadTexture("resources/Background/cyberpunk_street_foreground.png");     
     Texture2D foregroundAtlas = LoadTexture("resources/Atlas/foreground_atlas.png");
     Texture2D *enemyTex = (Texture2D *)malloc(numEnemyClasses*sizeof(Texture2D));
@@ -25,7 +24,7 @@ int main(void) {
     enemyTex[BOSS] = LoadTexture("resources/Atlas/hero_atlas.png");
 
     // Usado para Debbug
-    Vector2 mouseClick = (Vector2){0, 0};
+    //Vector2 mouseClick = (Vector2){0, 0};
 
     // Player Init
     Player player = CreatePlayer(100, (Vector2){122, 200},122, 122);
@@ -42,22 +41,30 @@ int main(void) {
         bulletsPool[i].isActive = false;
     }
 
+    Ground *groundPool = (Ground *)malloc(maxNumGrounds*sizeof(Ground));
+    for (int i = 0; i < maxNumGrounds; i++) {
+        groundPool[i].isActive = false;
+    } 
+    CreateGround(groundPool, (Vector2){0,screenHeight-150},screenWidth*3,5, true, true, false, true, true); // Chão (esse é sempre existente)
+    //CreateGround(groundPool,(Vector2) {50, 360}, 300, 20, true, false, false, false, true);
+
+    EnvProps *envPropsPool = (EnvProps *)malloc(maxNumEnvProps*sizeof(EnvProps));
+    for (int i = 0; i < maxNumEnvProps; i++) {
+        envPropsPool[i].isActive = false;
+    } 
+    CreateEnvProp(envPropsPool, groundPool, (Vector2) {800, screenHeight-150-200}, 200, 200, true);
+    CreateEnvProp(envPropsPool, groundPool, (Vector2) {1200, screenHeight-150-200-300}, 200, 200, true);
+
     // Pool de backgrounds. Sempre que um "sai" da tela, é destruído e um novo é gerado no "final" do mapa, mantendo sempre apenas 3 chunks
     Background *nearBackgroundPool = (Background *)malloc(numBackgroundRendered*sizeof(Background));
     Background *middleBackgroundPool = (Background *)malloc(numBackgroundRendered*sizeof(Background));
     Background *farBackgroundPool = (Background *)malloc(numBackgroundRendered*sizeof(Background));
     int numNearBackground = 0, numMiddleBackground = 0, numFarBackground = 0; // Usado para posicionamento correto das novas imagens geradas
     for (int i = 0; i < numBackgroundRendered; i++) {
-        farBackgroundPool[i] = CreateBackground(&player, farBackgroundPool, backgroundAtlas, BACKGROUND, &numFarBackground, 2.0f);
-        middleBackgroundPool[i] = CreateBackground(&player, middleBackgroundPool, midgroundAtlas, MIDDLEGROUND, &numMiddleBackground, 2.0f);
-        nearBackgroundPool[i] = CreateBackground(&player, nearBackgroundPool, foregroundAtlas, FOREGROUND, &numNearBackground, 2.0f);
+        farBackgroundPool[i] = CreateBackground(&player, farBackgroundPool, groundPool, backgroundAtlas, BACKGROUND, &numFarBackground);
+        middleBackgroundPool[i] = CreateBackground(&player, middleBackgroundPool, groundPool, midgroundAtlas, MIDDLEGROUND, &numMiddleBackground);
+        nearBackgroundPool[i] = CreateBackground(&player, nearBackgroundPool, groundPool, foregroundAtlas, FOREGROUND, &numNearBackground);
     }
-
-    Props *propsPool = (Props *)malloc(maxNumProps*sizeof(Props));
-    for (int i = 0; i < maxNumProps; i++) {
-        propsPool[i].isActive = false;
-    } 
-    propsPool[0] = (Props){(Rectangle){0,screenHeight-150,screenWidth*3,5}, 1, 0, 1, true};
 
     // Enemy Init
     Enemy *enemyPool = (Enemy *)malloc(maxNumEnemies*sizeof(Enemy));
@@ -79,34 +86,34 @@ int main(void) {
         float deltaTime = GetFrameTime();
 
         // Atualizar player
-        UpdatePlayer(&player, enemyPool, bulletsPool, deltaTime, propsPool, camMinX);
+        UpdatePlayer(&player, enemyPool, bulletsPool, deltaTime, groundPool, camMinX);
 
         // Atualizar balas
         for (int i = 0; i < maxNumBullets; i++) {
             if (bulletsPool[i].isActive)
-                UpdateBullets(&bulletsPool[i], enemyPool, &player, propsPool, deltaTime);
+                UpdateBullets(&bulletsPool[i], enemyPool, &player, groundPool, deltaTime);
         }
 
         // Atualizar limites de câmera e posição
         camMinX = (camMinX < camera.target.x - camera.offset.x ? camera.target.x - camera.offset.x : camMinX);
-        UpdateClampedCameraPlayer(&camera, &player, propsPool, deltaTime, screenWidth, screenHeight, &camMinX, camMaxX);
+        UpdateClampedCameraPlayer(&camera, &player, deltaTime, screenWidth, screenHeight, &camMinX, camMaxX);
 
         // Atualizar props
-        for (int i = 0; i < maxNumProps; i++) {
-            if (propsPool[i].isActive)
-                UpdateProps(&player, propsPool, deltaTime, camMinX);
-        }
+        UpdateGrounds(&player, groundPool, deltaTime, camMinX);
+
+        //EnvProps
+        UpdateEnvProps(&player, envPropsPool, deltaTime, camMinX);
 
         // Loop dentro da função TODO
-        UpdateBackground(&player, nearBackgroundPool, foregroundAtlas, deltaTime, &numNearBackground, camMinX, &camMaxX);
-        UpdateBackground(&player, middleBackgroundPool, midgroundAtlas, deltaTime, &numMiddleBackground, camMinX, &camMaxX);
-        UpdateBackground(&player, farBackgroundPool, backgroundAtlas, deltaTime, &numFarBackground, camMinX, &camMaxX);
+        UpdateBackground(&player, nearBackgroundPool, foregroundAtlas, groundPool, deltaTime, &numNearBackground, camMinX, &camMaxX);
+        UpdateBackground(&player, middleBackgroundPool, midgroundAtlas, groundPool, deltaTime, &numMiddleBackground, camMinX, &camMaxX);
+        UpdateBackground(&player, farBackgroundPool, backgroundAtlas, groundPool, deltaTime, &numFarBackground, camMinX, &camMaxX);
 
 
         // Atualizar inimigos
         for (int i = 0; i < maxNumEnemies; i++) {
             if (enemyPool[i].isAlive)
-                UpdateEnemy(enemyPool, &player, bulletsPool, deltaTime, propsPool);
+                UpdateEnemy(enemyPool, &player, bulletsPool, deltaTime, groundPool);
         }
 
         // Draw cycle
@@ -132,6 +139,20 @@ int main(void) {
                     (Vector2) { nearBackgroundPool[i].position.x, nearBackgroundPool[i].position.y }, WHITE);
                 }       
 
+                // Draw grounds
+                for (int i = 0; i < maxNumGrounds; i++) {
+                    if (groundPool[i].isActive)
+                        if (!groundPool[i].isInvisible)
+                            DrawRectangleRec(groundPool[i].rect, WHITE);
+                }
+
+                //EnvProps
+                for (int i = 0; i < maxNumEnvProps; i++) {
+                    if (envPropsPool[i].isActive) {
+                        DrawTexturePro(envPropsAtlas, (Rectangle) {0, 0, 200, 200}, envPropsPool[i].drawableRect, (Vector2) {0, 0}, 0, WHITE);
+                    }
+                }   
+
                 // Draw player
                 DrawPlayer(&player, characterTexDiv, false);
 
@@ -147,13 +168,6 @@ int main(void) {
                         DrawBullet(&bulletsPool[i], miscAtlas, false); //bulletspool, miscAtlas, colisão                        
                     }
                 }
-                
-                // Draw props
-                for (int i = 0; i < maxNumProps; i++) {
-                    if (propsPool[i].isActive)
-                        if (!propsPool[i].isInvisible)
-                            DrawRectangleRec(propsPool[i].rect, WHITE);
-                }
 
         EndMode2D();
 
@@ -163,8 +177,6 @@ int main(void) {
         
         //HUD deve vir aqui
             char state[50];
-            //sprintf(state, "%d", player.entity.upperAnimation.currentAnimationFrame);
-            //DrawText(state, 0, 675, 20, GREEN);
             switch (player.entity.upperAnimation.currentAnimationState) {
             case IDLE:
                 strcpy(state, "UPPER ANIMATION STATE: IDLE");
@@ -212,9 +224,10 @@ int main(void) {
     }
 
     // Unload
-    UnloadTexture(backgroundTex);
-    UnloadTexture(midgroundTex);
-    UnloadTexture(foregroundTex);
+    UnloadTexture(backgroundAtlas);
+    UnloadTexture(midgroundAtlas);
+    UnloadTexture(foregroundAtlas);
+    UnloadTexture(envPropsAtlas);
     UnloadTexture(characterTex);
     UnloadTexture(characterTexDiv);
     UnloadTexture(miscAtlas);
@@ -230,7 +243,7 @@ int main(void) {
     return 0;
 }
 
-Background CreateBackground(Player *player, Background *backgroundPool, Texture2D srcAtlas, enum BACKGROUND_TYPES bgType, int *numBackground, float scale) {
+Background CreateBackground(Player *player, Background *backgroundPool, Ground *groundPool, Texture2D srcAtlas, enum BACKGROUND_TYPES bgType, int *numBackground) {
     Background dstBackground;
     int numBg = *numBackground;
 
@@ -249,11 +262,10 @@ Background CreateBackground(Player *player, Background *backgroundPool, Texture2
 
 
     dstBackground.position.y = 0;
-    dstBackground.canvas = PaintCanvas(srcAtlas, bgType);
+    dstBackground.canvas = PaintCanvas(srcAtlas, bgType, groundPool, numBg);
     dstBackground.width = dstBackground.canvas.texture.width;
     dstBackground.height = dstBackground.canvas.texture.height;
     dstBackground.bgType = bgType;
-    dstBackground.scale = scale;
     dstBackground.position.x = numBg * dstBackground.width;
     dstBackground.originalX = dstBackground.position.x;
     *numBackground = numBg + 1;
@@ -463,6 +475,39 @@ void CreateBullet(Entity *entity, Bullet *bulletsPool, enum BULLET_TYPE bulletTy
     }
 }
 
+void CreateGround(Ground *groundPool, Vector2 position, int width, int height, bool canBeStepped, bool followCamera, bool blockPlayer, bool isInvisible, bool isActive) {
+    for (int i = 0; i < maxNumGrounds; i++) {
+         Ground *curGround = groundPool + i;
+         if (!curGround->isActive) {
+             curGround->rect = (Rectangle) {position.x, position.y, width, height};
+             curGround->canBeStepped = canBeStepped;
+             curGround->followCamera = followCamera;
+             curGround->blockPlayer = blockPlayer;
+             curGround->isInvisible = isInvisible;
+             curGround->isActive = isActive;
+
+             return;
+        }
+    }
+}
+
+void CreateEnvProp(EnvProps *envPropsPool, Ground *groundPool, Vector2 position, int width, int height, bool isActive) {
+    for (int i = 0; i < maxNumEnvProps; i++) {
+         EnvProps *curProp = envPropsPool + i;
+         if (!curProp->isActive) {
+             curProp->groundRect = (Rectangle) {position.x, position.y, width, height};
+             CreateGround(groundPool, (Vector2){position.x, position.y}, width, height, true, false, true, true, true);
+             curProp->drawableRect = (Rectangle) {position.x, position.y, width, height};
+             curProp->collisionRect = (Rectangle) {position.x, position.y, width, height};
+             curProp->isDestroyable = false;
+             curProp->isCollectable = false;
+             curProp->isActive = isActive;
+
+             return;
+        }
+    }
+}
+
 Camera2D CreateCamera (Vector2 target, Vector2 offset, float rotation, float zoom) {
     Camera2D newCam = {0};
     newCam.target = target;
@@ -473,7 +518,7 @@ Camera2D CreateCamera (Vector2 target, Vector2 offset, float rotation, float zoo
     return newCam;
 }
 
-void UpdatePlayer(Player *player, Enemy *enemy, Bullet *bulletPool, float delta, Props *props, float minX) {
+void UpdatePlayer(Player *player, Enemy *enemy, Bullet *bulletPool, float delta, Ground *ground, float minX) {
     enum CHARACTER_STATE currentState = player->entity.lowerAnimation.currentAnimationState;
     player->entity.lowerAnimation.timeSinceLastFrame += delta;
     player->entity.upperAnimation.timeSinceLastFrame += delta;
@@ -503,7 +548,7 @@ void UpdatePlayer(Player *player, Enemy *enemy, Bullet *bulletPool, float delta,
 
         if (IsKeyDown(KEY_SPACE) && player->entity.isGrounded) 
         {
-            player->entity.velocity.y = -player->entity.jumpSpeed;
+            player->entity.velocity.y = -2*player->entity.jumpSpeed;
             player->entity.isGrounded = false;
         }
 
@@ -531,7 +576,7 @@ void UpdatePlayer(Player *player, Enemy *enemy, Bullet *bulletPool, float delta,
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     // Handler de colisão do player                                   ///////////////////////////////////////////////////////////////////////
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    EntityCollisionHandler(&(player->entity), props, delta);
+    EntityCollisionHandler(&(player->entity), ground, delta);
 
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     // Handler de física e gráfico do player                          ///////////////////////////////////////////////////////////////////////
@@ -543,13 +588,21 @@ void UpdatePlayer(Player *player, Enemy *enemy, Bullet *bulletPool, float delta,
         player->entity.position.x = minX + player->entity.width/2;
     } 
 
+    if (player->entity.position.y < player->entity.height/2) {
+        player->entity.position.y = player->entity.height/2;
+        player->entity.velocity.y = 0;
+    }
+
     // Atualizar caixa de colisão e retângulo de desenho
     player->entity.drawableRect = (Rectangle) {player->entity.position.x, player->entity.position.y, (int)(player->entity.width * player->entity.characterWidthScale), (int)(player->entity.height * player->entity.characterHeightScale)};
-    player->entity.collisionBox = (Rectangle) {player->entity.position.x  - player->entity.width/2 + (player->entity.lowerAnimation.isFacingRight == -1 ? 0.3f : 0.15f) * player->entity.width, player->entity.position.y - player->entity.height/2, player->entity.width * 0.5f, player->entity.height};
+    player->entity.collisionBox = (Rectangle) {player->entity.position.x  - player->entity.width/2 + (player->entity.lowerAnimation.isFacingRight == -1 ? 0.43f : 0.23f) * player->entity.width, player->entity.position.y - player->entity.height/2, player->entity.width * 0.35f, player->entity.height};
     player->entity.collisionHead = (Circle) {(Vector2){player->entity.position.x - player->entity.lowerAnimation.isFacingRight * 0.1f * player->entity.width, player->entity.position.y - 0.15f * player->entity.height}, player->entity.width * 0.2f};
+char state[30];
+                        sprintf(state, "%f", (player->entity.position.x - player->entity.collisionBox.x));
+                        DrawText(state, 0, 150, 20, BLUE);
 }
 
-void UpdateEnemy(Enemy *enemy, Player *player, Bullet *bulletPool, float delta, Props *props) {
+void UpdateEnemy(Enemy *enemy, Player *player, Bullet *bulletPool, float delta, Ground *ground) {
     Entity *eEnt = &(enemy->entity);
     enum CHARACTER_STATE currentState = eEnt->lowerAnimation.currentAnimationState;
     eEnt->lowerAnimation.timeSinceLastFrame += delta;
@@ -564,7 +617,7 @@ void UpdateEnemy(Enemy *enemy, Player *player, Bullet *bulletPool, float delta, 
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     // Handler de colisão do enemy                                    ///////////////////////////////////////////////////////////////////////
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    EntityCollisionHandler(&(enemy->entity), props, delta);
+    EntityCollisionHandler(&(enemy->entity), ground, delta);
 
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     // Handler de física e gráfico do enemy                           ///////////////////////////////////////////////////////////////////////
@@ -576,16 +629,16 @@ void UpdateEnemy(Enemy *enemy, Player *player, Bullet *bulletPool, float delta, 
     eEnt->collisionHead = (Circle) {(Vector2){eEnt->position.x - eEnt->lowerAnimation.isFacingRight * 0.1f * eEnt->width, eEnt->position.y - 0.15f * eEnt->height}, eEnt->width * 0.2f};
 }
      
-void UpdateBullets(Bullet *bullet, Enemy *enemy, Player *player, Props *props, float delta) {
+void UpdateBullets(Bullet *bullet, Enemy *enemy, Player *player, Ground *ground, float delta) {
     bullet->lifeTime += delta;
     bullet->animation.timeSinceLastFrame += delta;
     // Checar colisão
     // Props
-    for (int i = 0; i < maxNumProps; i++)
+    for (int i = 0; i < maxNumGrounds; i++)
     {
-        Props *eprop = props + i;
-        if (eprop->isActive) {
-            if (CheckCollisionRecs(eprop->rect, bullet->collisionBox)) {
+        Ground *curGround = ground + i;
+        if (curGround->isActive) {
+            if (CheckCollisionRecs(curGround->rect, bullet->collisionBox)) {
                 bullet->isActive = false;
             }
         }
@@ -672,7 +725,7 @@ void UpdateBullets(Bullet *bullet, Enemy *enemy, Player *player, Props *props, f
 
 }
 
-void UpdateClampedCameraPlayer(Camera2D *camera, Player *player, Props *props, float delta, int width, int height, float *minX, float maxX) {
+void UpdateClampedCameraPlayer(Camera2D *camera, Player *player, float delta, int width, int height, float *minX, float maxX) {
     camera->target = player->entity.position;
     camera->offset = (Vector2){ width/2.0f, height/2.0f };
     float minY = 0.00f, maxY = height; // Camera clamp controls. TODO, maxX
@@ -689,12 +742,30 @@ void UpdateClampedCameraPlayer(Camera2D *camera, Player *player, Props *props, f
     if (min.y > 0) camera->offset.y = height/2 - min.y;
 }
 
-void UpdateProps(Player *player, Props *props, float delta, float minX) {
-    Props *floor = props + 0;
-    floor->rect.x = minX;
+void UpdateGrounds(Player *player, Ground *ground, float delta, float minX) {
+    for (int i = 0; i < maxNumGrounds; i++) {
+        Ground *curGround = ground + i;
+        if (curGround->isActive) {
+            if (curGround->followCamera)
+                curGround->rect.x = minX;
+
+            if (curGround->rect.x + curGround->rect.width < minX) 
+                curGround->isActive = false;
+        }
+    }
 }
 
-void UpdateBackground(Player *player, Background *backgroundPool, Texture2D srcAtlas, float delta, int *numBackground, float minX, float *maxX) {
+void UpdateEnvProps(Player *player, EnvProps *envPropsPool, float delta, float minX) {
+    for (int i = 0; i < maxNumEnvProps; i++) {
+        EnvProps *curEnvProp = envPropsPool + i;
+        if (curEnvProp->isActive) {
+            if (curEnvProp->drawableRect.x + curEnvProp->drawableRect.width < minX) 
+                curEnvProp->isActive = false;
+        }
+    }
+}
+
+void UpdateBackground(Player *player, Background *backgroundPool, Texture2D srcAtlas, Ground *groundPool, float delta, int *numBackground, float minX, float *maxX) {
 
     for (int i = 0; i < numBackgroundRendered; i++) {
         Background *bgP = backgroundPool + i;
@@ -705,7 +776,7 @@ void UpdateBackground(Player *player, Background *backgroundPool, Texture2D srcA
             ClearBackground(GetColor(0x052c46ff));
             EndTextureMode();
             UnloadRenderTexture(bgP->canvas);
-            *bgP = CreateBackground(player, backgroundPool, srcAtlas, bgP->bgType, numBackground, 2.0f);
+            *bgP = CreateBackground(player, backgroundPool, groundPool, srcAtlas, bgP->bgType, numBackground);
             if (*maxX <= bgP->position.x + bgP->width)
                 *maxX = bgP->position.x + bgP->width;
         }
@@ -762,119 +833,158 @@ void DrawPlayer(Player *player, Texture2D texture, bool drawCollisionBox) {
     DrawTexturePro(texture, player->entity.upperAnimation.currentAnimationFrameRect, player->entity.drawableRect, (Vector2) {player->entity.width/2, player->entity.height/2}, 0, WHITE);
 }
 
-RenderTexture2D PaintCanvas(Texture2D atlas, enum BACKGROUND_TYPES bgLayer) {
-    RenderTexture2D canvas;
+RenderTexture2D PaintCanvas(Texture2D atlas, enum BACKGROUND_TYPES bgLayer, Ground *groundPool, int relativeXPos) {
+    int width = screenWidth;
+    int height = screenHeight;
+    RenderTexture2D canvas = LoadRenderTexture(width, height);
     int frameWidth;
     int frameHeight;
     int offset;
-    int width;
-    int height;
     int buildingRow;
     int buildingCol;
     switch(bgLayer) {
         case BACKGROUND:
-            frameWidth = 120;
-            frameHeight = 450;
-            offset = 5;
-            width = screenWidth;
-            height = screenHeight;
-            buildingRow = 0;
-            buildingCol = 0;
-            canvas = LoadRenderTexture(width, height);
-            BeginTextureMode(canvas);
-            //ClearBackground(RAYWHITE);
-            for (int i = 0; i < 14; i++) { // totalProps max
-                buildingRow = 0;
-                buildingCol = GetRandomValue(0, 3); // 4 Tipos
-                if (GetRandomValue(1,5) >= 2) 
-                    DrawTexturePro(atlas, (Rectangle){buildingCol*frameWidth, buildingRow*frameHeight, frameWidth, frameHeight},
-                        (Rectangle){offset + (i*(offset+frameWidth)), (height - 2*frameHeight - GetRandomValue(20, 100)), frameWidth*1.2f, 2*GetRandomValue(frameHeight-10, frameHeight+10)}, (Vector2) {0, 0}, 0, WHITE);
-            }
-            EndTextureMode();
+            GenerateBackground(canvas, atlas, SKYSCRAPER);
         break;
         case MIDDLEGROUND:
-            frameWidth = 178;
-            frameHeight = 36;
-            offset = 30;
-            width = screenWidth;
-            height = screenHeight;
-            buildingRow = 0;
-            buildingCol = 0;
-            canvas = LoadRenderTexture(width, height);
-            BeginTextureMode(canvas);
-            for (int j = 0; j < 4; j++) { //2 Unidades por chunk
-                int numFloor = GetRandomValue(10,15);
-                int heightScale = GetRandomValue(-3,3);
-                int widthScale = GetRandomValue(-10,-5);
-                int doubled = GetRandomValue(1,5);
-                for (int i = 0; i < numFloor; i++) {
-                    buildingRow = GetRandomValue(0,5); // 6 tipos
-                    DrawTexturePro(atlas, (Rectangle){0, buildingRow*frameHeight, frameWidth, frameHeight},
-                        (Rectangle){offset + (j*(offset+2*frameWidth+widthScale)), (height - 150) - i*(frameHeight+heightScale), frameWidth + widthScale, frameHeight + heightScale},
-                        (Vector2) {0, 0}, 0, WHITE);
-                    if (doubled < 2) {
-                        buildingRow = GetRandomValue(0,5); // 6 tipos
-                        DrawTexturePro(atlas, (Rectangle){0, buildingRow*frameHeight, -frameWidth, frameHeight},
-                            (Rectangle){offset + frameWidth +widthScale+ (j*(offset+2*frameWidth+widthScale)), (height - 150) - i*(frameHeight+heightScale), frameWidth + widthScale, frameHeight + heightScale},
-                            (Vector2) {0, 0}, 0, WHITE);
-                    }
-                }
-            }
-            EndTextureMode();
+            GenerateMidground(canvas, atlas, COMPLEX);
         break;
         case FOREGROUND:
-            frameWidth = 200;
-            frameHeight = 200;
-            int overhang = 0;
-            int buildingRow = 0;
-            int numFloor = GetRandomValue(3,4);
-            int tilesWidth = GetRandomValue(3,5);
-            bool hasDoor = false;
-            int isFlipped = 1;
-            int style = GetRandomValue(0,1); // 2 estilos
-            width = screenWidth;
-            height = screenHeight;
-            canvas = LoadRenderTexture(width, height);
-            BeginTextureMode(canvas);
-            for (int i = 0; i < numFloor; i++) {
-                for (int j = 0; j < tilesWidth; j++) {
-                    overhang = 0;
-                    if (j == 0) {
-                        buildingRow = 0;
-                        isFlipped = 1;
-                    } else if (j == tilesWidth - 1) {
-                        buildingRow = 0;
-                        isFlipped = -1;
-                    } else {
-                        if (i == 0) {
-                            if (j == tilesWidth - 2 && !hasDoor) {
-                                buildingRow = 1;
-                            } else {
-                                if (!hasDoor) {
-                                    buildingRow = (GetRandomValue(0,3) == 0 ? 1 : 2);
-                                    if (buildingRow == 1) {
-                                        hasDoor = true;
-                                    }
-                                } else {
-                                    buildingRow = 2;
-                                }
-                            }
-                        } else {
-                            buildingRow = (GetRandomValue(0,3) == 0 ? 3 : 2);
-                        }
-                    }
-                    if (i == numFloor - 1) {
-                        overhang = 7;
-                        buildingRow = 4;
-                    }
-                    DrawTexturePro(atlas, (Rectangle){style*frameWidth, buildingRow*frameHeight, isFlipped*frameWidth, frameHeight},
-                        (Rectangle){100+j*frameHeight-overhang, (height - 150) - (i+1)*(frameHeight), frameWidth+2*overhang, frameHeight}, // deslocado 150 pixels acima do fundo da tela
-                        (Vector2) {0, 0}, 0, WHITE);
-                }
-            }
-            EndTextureMode();
+            GenerateForeground(canvas, groundPool, atlas, RESIDENTIAL, relativeXPos);
         break;
     }
 
     return canvas;
+}
+
+void GenerateBackground(RenderTexture2D canvas, Texture atlas, enum BACKGROUND_STYLE bgStyle) {
+    int frameWidth;
+    int frameHeight;
+    int offset;
+    int buildingRow;
+    int buildingCol;
+    BeginTextureMode(canvas);
+    switch (bgStyle) {
+    case SKYSCRAPER:
+        frameWidth = BACKGROUND_GRID[0];
+        frameHeight = BACKGROUND_GRID[1];
+        buildingRow = BACKGROUND_SKYSCRAPER_ROW;
+        offset = 5;
+        //ClearBackground(RAYWHITE);
+        for (int i = 0; i < 14; i++) { // totalProps max
+            buildingCol = GetRandomValue(0, BACKGROUND_SKYSCRAPER_NUM_TYPES-1); // 4 Tipos
+            if (GetRandomValue(1,5) >= 2) // 80% de Gerar
+                DrawTexturePro(atlas, (Rectangle){buildingCol*frameWidth, buildingRow*frameHeight, frameWidth, frameHeight},
+                    (Rectangle){offset + (i*(offset+frameWidth)), (canvas.texture.height - 2*frameHeight - GetRandomValue(20, 100)), frameWidth*1.2f, 2*GetRandomValue(frameHeight-10, frameHeight+10)}, (Vector2) {0, 0}, 0, WHITE);
+        }
+        break;
+    default:
+        break;
+    }
+    EndTextureMode();
+}
+
+void GenerateMidground(RenderTexture2D canvas, Texture atlas, enum MIDDLEGROUND_STYLE mgStyle) {
+    int frameWidth;
+    int frameHeight;
+    int offset;
+    int buildingRow;
+    int buildingCol;
+    BeginTextureMode(canvas);
+    switch (mgStyle) {
+    case COMPLEX:
+        frameWidth = MIDGROUND_GRID[0];
+        frameHeight = MIDGROUND_GRID[1];
+        offset = 30;
+        buildingCol = MIDGROUND_SKYSCRAPER_COL;
+        for (int j = 0; j < 4; j++) { //4 Unidades por chunk
+            int numFloor = GetRandomValue(10,15);
+            int heightScale = GetRandomValue(-3,3);
+            int widthScale = GetRandomValue(-10,-5);
+            int doubled = GetRandomValue(1,5);
+            for (int i = 0; i < numFloor; i++) {
+                buildingRow = GetRandomValue(0,MIDGROUND_SKYSCRAPER_NUM_TYPES-1); // 6 tipos
+                DrawTexturePro(atlas, (Rectangle){0, buildingRow*frameHeight, frameWidth, frameHeight},
+                    (Rectangle){offset + (j*(offset+2*frameWidth+widthScale)), (canvas.texture.height - 150) - i*(frameHeight+heightScale), frameWidth + widthScale, frameHeight + heightScale},
+                    (Vector2) {0, 0}, 0, WHITE);
+                if (doubled < 2) {
+                    buildingRow = GetRandomValue(0,MIDGROUND_SKYSCRAPER_NUM_TYPES-1); // 6 tipos
+                    DrawTexturePro(atlas, (Rectangle){0, buildingRow*frameHeight, -frameWidth, frameHeight},
+                        (Rectangle){offset + frameWidth +widthScale+ (j*(offset+2*frameWidth+widthScale)), (canvas.texture.height - 150) - i*(frameHeight+heightScale), frameWidth + widthScale, frameHeight + heightScale},
+                        (Vector2) {0, 0}, 0, WHITE);
+                }
+            }
+        }
+        break;
+    default:
+        break;
+    }
+    EndTextureMode();
+ }
+
+void GenerateForeground(RenderTexture2D canvas, Ground *groundPool, Texture atlas, enum FOREGROUND_STYLE fgStyle, int relativeXPos) {
+    int frameWidth;
+    int frameHeight;
+    int overhang;
+    int buildingRow;
+    int numFloor;
+    int tilesWidth;
+    bool hasDoor;
+    int isFlipped;
+    int style;
+    BeginTextureMode(canvas);
+
+    switch (fgStyle) {
+    case RESIDENTIAL:
+        frameWidth = FOREGROUND_GRID[0];
+        frameHeight = FOREGROUND_GRID[0];
+        overhang = 0;
+        buildingRow = 0;
+        numFloor = GetRandomValue(3,4);
+        tilesWidth = GetRandomValue(3,5);
+        hasDoor = false;
+        isFlipped = 1;
+        style = GetRandomValue(0,FOREGROUND_NUM_TYPES-1); // 2 estilos
+        for (int i = 0; i < numFloor; i++) {
+            for (int j = 0; j < tilesWidth; j++) {
+                overhang = 0;
+                if (j == 0) { //borda esquerda
+                    buildingRow = FOREGROUND_EDGE_ROW;
+                    isFlipped = 1;
+                } else if (j == tilesWidth - 1) { // borda direita
+                    buildingRow = FOREGROUND_EDGE_ROW;
+                    isFlipped = -1;
+                } else {
+                    if (i == 0) { // andar térreo
+                        if (j == tilesWidth - 2 && !hasDoor) { // Se não teve porta até a penúltima casa, forçar porta
+                            buildingRow = FOREGROUND_DOOR_ROW;
+                        } else {
+                            if (!hasDoor) {
+                                buildingRow = (GetRandomValue(0,3) == 0 ? 1 : 2); // TODO possibilidades
+                                if (buildingRow == FOREGROUND_DOOR_ROW) {
+                                    hasDoor = true;
+                                }
+                            } else { // Se já tem porta, parede
+                                buildingRow = FOREGROUND_WALL1_ROW;
+                            }
+                        }
+                    } else { // Casas normais
+                        buildingRow = (GetRandomValue(0,3) == 0 ? 3 : 2); // TODO possibilidades
+                    }
+                }
+                if (i == numFloor - 1) { // teto
+                    overhang = 7;
+                    buildingRow = FOREGROUND_ROOF_ROW;
+                    CreateGround(groundPool,(Vector2) {100+j*frameHeight-overhang + relativeXPos*canvas.texture.width, (canvas.texture.height - 150) - (i)*(frameHeight)-50}, frameWidth+2*overhang, 20, true, false, false, true, true);
+                }
+                DrawTexturePro(atlas, (Rectangle){style*frameWidth, buildingRow*frameHeight, isFlipped*frameWidth, frameHeight},
+                    (Rectangle){100+j*frameHeight-overhang, (canvas.texture.height - 150) - (i+1)*(frameHeight), frameWidth+2*overhang, frameHeight}, // deslocado 150 pixels acima do fundo da tela
+                    (Vector2) {0, 0}, 0, WHITE);
+            }
+        }
+        break;
+    default:
+        break;
+    }
+    EndTextureMode();
 }

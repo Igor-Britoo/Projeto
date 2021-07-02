@@ -5,13 +5,16 @@
 #include <math.h>
 #include "raylib.h"
 
+
 // Enums
 enum CHARACTER_STATE{IDLE, WALKING, HURT, JUMPING, FALLING, ATTACKING, DYING, DEAD};
 enum CHARACTER_AIMING{FORWARD, UP45, DOWN45};
 enum ENTITY_TYPES{PLAYER, ENEMY};
 enum ENEMY_BEHAVIOR{NONE, ATTACK, MOVE};
 enum BACKGROUND_TYPES{BACKGROUND, MIDDLEGROUND, FOREGROUND};
+enum BACKGROUND_STYLE{SKYSCRAPER};
 enum MIDDLEGROUND_STYLE{COMPLEX, RED_BUILDING};
+enum FOREGROUND_STYLE{RESIDENTIAL};
 enum BULLET_TYPE{MAGNUM, SNIPER, LASER};
 enum ENEMY_CLASSES{SWORDSMAN, GUNNER, SNIPERSHOOTER, DRONE, TURRET, BOSS};
 
@@ -21,7 +24,8 @@ const float bulletLifeTime = 4; // 4 s
 const static int numBackgroundRendered = 7;
 const static int maxNumBullets = 100;
 const static int maxNumEnemies = 20;
-const static int maxNumProps = 20;
+const static int maxNumGrounds = 300;
+const static int maxNumEnvProps = 50;
 const static int numEnemyClasses = 6;
 const int screenWidth = 1920;
 const int screenHeight = 1080;
@@ -102,14 +106,25 @@ typedef struct enemy
 
 } Enemy;
 
-typedef struct props {
+
+/**********************************************************************************************
+ ** Struct para objetos interativos do cenário                                               **
+ ** @rect: Rectangle com informação da posição, largura e altura da parte interativa         **
+ ** @canBeStepped:  Bool se a parte superior interage com a flag "isGrounded" das entidades  **
+ ** @followCamera:  Bool se a posição em @rect se mantém em relação à câmera                 **
+ ** @blockPlayer: Bool se o @rect impede que as entidades passem horizontalmente por "dentro"**
+ ** @isInvisible: Bool se o Ground deve ser desenhado na tela                                **
+ ** @isActive: Bool de controle se o Ground existe                                           **
+ **********************************************************************************************/
+typedef struct ground {
     Rectangle rect;
-    int canBeStepped;
-    int blockPlayer;
-    int isInvisible;
+    bool canBeStepped;
+    bool followCamera;
+    bool blockPlayer;
+    bool isInvisible;
     bool isActive;
 
-} Props;
+} Ground;
 
 
 typedef struct background {
@@ -157,26 +172,44 @@ typedef struct bullet {
 
 } Bullet;
 
+typedef struct envProps {
+    Rectangle groundRect;
+    Rectangle frameRect;
+    enum OBJECTS_TYPES type;
+    Rectangle drawableRect;
+    Rectangle collisionRect; 
+    bool isDestroyable;
+    bool isCollectable;
+    bool isActive;
+} EnvProps;
+
 // Headers
 Texture2D CreateTexture(enum BACKGROUND_TYPES bgLayer, Image srcAtlas);
 void CreateBullet(Entity *entity, Bullet *bulletsPool, enum BULLET_TYPE bulletType, enum ENTITY_TYPES srcEntity);
-Background CreateBackground(Player *player, Background *backgroundPool, Texture2D srcAtlas, enum BACKGROUND_TYPES bgType, int *numBackground, float scale);
+void CreateGround(Ground *groundPool, Vector2 position, int width, int height, bool canBeStepped, bool followCamera, bool blockPlayer, bool isInvisible, bool isActive);
+void CreateEnvProp(EnvProps *envPropsPool, Ground *groundPool, Vector2 position, int width, int height, bool isActive);
+Background CreateBackground(Player *player, Background *backgroundPool, Ground *groundPool, Texture2D srcAtlas, enum BACKGROUND_TYPES bgType, int *numBackground);
 Camera2D CreateCamera (Vector2 target, Vector2 offset, float rotation, float zoom);
 Player CreatePlayer(int maxHP, Vector2 position, int width, int height);
 Enemy CreateEnemy(enum ENEMY_CLASSES class, int maxHP, Vector2 position, int width, int height);
 
-void UpdateBackground(Player *player, Background *backgroundPool, Texture2D srcAtlas, float delta, int *numBackground, float minX, float *maxX);
-void UpdateClampedCameraPlayer(Camera2D *camera, Player *player, Props *props, float delta, int width, int height, float *minX, float maxX);
-void UpdatePlayer(Player *player, Enemy *enemy, Bullet *bulletPool, float delta, Props *props, float minX);
-void UpdateBullets(Bullet *bullet, Enemy *enemy, Player *player, Props *props, float delta);
-void UpdateEnemy(Enemy *enemy, Player *player, Bullet *bulletPool, float delta, Props *props);
-void UpdateProps(Player *player, Props *props, float delta, float minX);
+void UpdateBackground(Player *player, Background *backgroundPool, Texture2D srcAtlas, Ground *groundPool, float delta, int *numBackground, float minX, float *maxX);
+void UpdateClampedCameraPlayer(Camera2D *camera, Player *player, float delta, int width, int height, float *minX, float maxX);
+void UpdatePlayer(Player *player, Enemy *enemy, Bullet *bulletPool, float delta, Ground *ground, float minX);
+void UpdateBullets(Bullet *bullet, Enemy *enemy, Player *player, Ground *ground, float delta);
+void UpdateEnemy(Enemy *enemy, Player *player, Bullet *bulletPool, float delta, Ground *ground);
+void UpdateGrounds(Player *player, Ground *ground, float delta, float minX);
+void UpdateEnvProps(Player *player, EnvProps *envPropsPool, float delta, float minX);
 
 void DrawEnemy(Enemy *enemy, Texture2D *texture, bool drawDetectionCollision, bool drawLife, bool drawCollisionBox);
 void DrawBullet(Bullet *bullet, Texture2D texture, bool drawCollisionBox);
 void DrawPlayer(Player *player, Texture2D texture, bool drawCollisionBox);
 
-RenderTexture2D PaintCanvas(Texture2D atlas, enum BACKGROUND_TYPES bgLayer);
+RenderTexture2D PaintCanvas(Texture2D atlas, enum BACKGROUND_TYPES bgLayer, Ground *groundPool, int relativeXPos);
+
+void GenerateBackground(RenderTexture2D canvas, Texture atlas, enum BACKGROUND_STYLE bgStyle);
+void GenerateMidground(RenderTexture2D canvas, Texture atlas, enum MIDDLEGROUND_STYLE mgStyle);
+void GenerateForeground(RenderTexture2D canvas, Ground *groundPool, Texture atlas, enum FOREGROUND_STYLE fgStyle, int relativeXPos);
 
 void TurnAround(Entity *ent) {
     ent->lowerAnimation.isFacingRight *= -1;
@@ -483,24 +516,62 @@ void PhysicsAndGraphicsHandlers (Entity *entity, float delta, enum CHARACTER_STA
     entity->upperAnimation.currentAnimationFrameRect.width = entity->lowerAnimation.isFacingRight * entity->upperAnimation.animationFrameWidth;
 }
 
-void EntityCollisionHandler(Entity *entity, Props *props, float delta) {
+void EntityCollisionHandler(Entity *entity, Ground *ground, float delta) {
     // Colisão com props                                            ///////////////////////////////////////////////////////////////////////
     int hitObstacle = 0;
-    int hasFloorBelow = 0;
     Rectangle prectGrav = entity->collisionBox;
     prectGrav.y += 1;
-    for (int i = 0; i < maxNumProps; i++)
+    for (int i = 0; i < maxNumGrounds; i++)
     {
-        Props *eprop = props + i;
+        Ground *curGround = ground + i;
         Vector2 *p = &(entity->position);
-        if (eprop->canBeStepped) {
-            if (CheckCollisionRecs(eprop->rect, entity->collisionBox)) {
-                hitObstacle = 1;
-                entity->velocity.y = 0.0f;
-                p->y = eprop->rect.y - entity->height / 2;
-            }
-            if (CheckCollisionRecs(eprop->rect, prectGrav)) {
-                hasFloorBelow = 1;
+        if (curGround->isActive) {
+            Rectangle *eCol = &(entity->collisionBox);
+            Vector2 *eVel = &(entity->velocity);
+            Rectangle futureBox = (Rectangle) {eCol->x + eVel->x * delta, eCol->y + eVel->y * delta, eCol->width, eCol->height};
+            if (curGround->blockPlayer) {
+                if (CheckCollisionRecs(curGround->rect, futureBox)) {
+                    bool checkHorizontal = true;
+                    if (futureBox.y + futureBox.height < curGround->rect.y + 5 && eVel->y >= 0) {
+                        hitObstacle = 1;
+                        eVel->y = 0;
+                        p->y = curGround->rect.y - entity->height / 2+1;
+                        checkHorizontal = false;
+                    } else
+                    if (futureBox.y > curGround->rect.y + curGround->rect.height - 5 && eVel->y < 0) {
+                        checkHorizontal = false;
+                        eVel->y = 0;
+                    }
+                    if (checkHorizontal) {
+                        if (futureBox.x > curGround->rect.x) {
+                            if (entity->lowerAnimation.isFacingRight < 0) {
+                                p->x = curGround->rect.x + curGround->rect.width + 9;
+                            } else {
+                                p->x = curGround->rect.x + curGround->rect.width + 39;
+                            }
+                            eVel->x = 0;
+                        } else
+                        if (futureBox.x < curGround->rect.x) {
+                            if (entity->lowerAnimation.isFacingRight < 0) {
+                                p->x = curGround->rect.x - 39;
+                            } else {
+                                p->x = curGround->rect.x - 9;
+                            }
+                            eVel->x = 0;
+                        }
+                    }
+                }
+            } else if (curGround->canBeStepped) {
+                if (CheckCollisionRecs(curGround->rect, futureBox)) {
+                    if (entity->velocity.y >= 0) {
+                        if (p->y <= curGround->rect.y - entity->height / 2+1) {
+                            hitObstacle = 1;
+                            entity->velocity.y = 0;
+                            p->y = curGround->rect.y - entity->height / 2+1;
+                        }
+                    }
+                }
+
             }
         }
     }
@@ -508,16 +579,13 @@ void EntityCollisionHandler(Entity *entity, Props *props, float delta) {
     // Verifica se tem props abaixo para controle da gravidade      ///////////////////////////////////////////////////////////////////////
     if (!hitObstacle) 
     {
-        entity->position.y += entity->velocity.y * delta;
-        entity->velocity.y += GRAVITY * delta;
+        entity->position.y += entity->velocity.y*delta;
+        entity->velocity.y += GRAVITY*delta;
         entity->isGrounded = false;
-    } 
-    else entity->isGrounded = true;
-
-    if (hasFloorBelow) {
-        entity->velocity.y = 0;
+    } else {
         entity->isGrounded = true;
     }
+
 }
 
 void HurtEntity(Entity *dstEntity, Bullet srcBullet, float damage) {
