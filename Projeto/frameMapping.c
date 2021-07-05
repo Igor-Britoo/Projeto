@@ -29,6 +29,26 @@ int static PLAYER_BODY_DYING_ROW = 10;
 int static PLAYER_BODY_DYING_NUM_FRAMES = 7;
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Assassin frames /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+int static ASSASSIN_GRID[2] = {135, 135};
+// LEGS são as animações exclusivas a parte inferior do Assassin
+int static ASSASSIN_LEGS_IDLE_ROW = 0;
+int static ASSASSIN_LEGS_IDLE_NUM_FRAMES = 8;
+int static ASSASSIN_LEGS_WALKING_ROW = 1;
+int static ASSASSIN_LEGS_WALKING_NUM_FRAMES = 8;
+// UPPER são as animações exclusivas a parte superior do Assassin
+int static ASSASSIN_UPPER_IDLE_ROW = 2;
+int static ASSASSIN_UPPER_IDLE_NUM_FRAMES = 8;
+int static ASSASSIN_UPPER_WALKING_ROW = 3;
+int static ASSASSIN_UPPER_WALKING_NUM_FRAMES = 8;
+int static ASSASSIN_UPPER_ATTACKING_ROW = 4;
+int static ASSASSIN_UPPER_ATTACKING_NUM_FRAMES = 6;
+// BODY são as animações do Assassin como um todo (controlados por lowerAnimation)
+int static ASSASSIN_BODY_DYING_ROW = 5;
+int static ASSASSIN_BODY_DYING_NUM_FRAMES = 8;
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Objects frames //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 int static OBJECTS_GRID[2] = {200, 200};

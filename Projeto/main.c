@@ -14,11 +14,11 @@ int main(void) {
     Texture2D backgroundAtlas = LoadTexture("resources/Atlas/background_atlas.png");        
     Texture2D midgroundAtlas = LoadTexture("resources/Atlas/midground_atlas.png");        
     Texture2D envPropsAtlas = LoadTexture("resources/Atlas/env_props_atlas.png");        
-    //Texture2D foregroundAtlas = LoadTexture("resources/Background/cyberpunk_street_foreground.png");     
     Texture2D foregroundAtlas = LoadTexture("resources/Atlas/foreground_atlas.png");
 
     Texture2D *enemyTex = (Texture2D *)malloc(numEnemyClasses*sizeof(Texture2D));
     enemyTex[SWORDSMAN] = LoadTexture("resources/Atlas/hero_atlas_div.png");
+    enemyTex[ASSASSIN] = LoadTexture("resources/Atlas/assassin_atlas_div.png");
     enemyTex[GUNNER] = LoadTexture("resources/Atlas/hero_atlas_div.png");
     enemyTex[SNIPERSHOOTER] = LoadTexture("resources/Atlas/hero_atlas_div.png");
     enemyTex[DRONE] = LoadTexture("resources/Atlas/hero_atlas_div.png");
@@ -30,9 +30,6 @@ int main(void) {
     int difficulty = 0;
     long points = 0;
 
-    // Usado para Debbug
-    //Vector2 mouseClick = (Vector2){0, 0};
-
     // Player Init
     Player player = CreatePlayer(100, (Vector2){122, 200},122, 122);
 
@@ -43,51 +40,61 @@ int main(void) {
 
     // General Init
     Bullet *bulletsPool = (Bullet *)malloc(maxNumBullets*sizeof(Bullet));
-    for (int i = 0; i < maxNumBullets; i++) {
-        bulletsPool[i].isActive = false;
-    }
-
     Grenade *grenadesPool = (Grenade *)malloc(maxNumGrenade*sizeof(Grenade));
-    for (int i = 0; i < maxNumGrenade; i++) {
-        grenadesPool[i].isActive = false;
-    }
-
     Ground *groundPool = (Ground *)malloc(maxNumGrounds*sizeof(Ground));
-    for (int i = 0; i < maxNumGrounds; i++) {
-        groundPool[i].isActive = false;
-    } 
-    CreateGround(groundPool, (Vector2){0,screenHeight-150},screenWidth*7,5, true, true, false, true); // Chão (esse é sempre existente)
-
     EnvProps *envPropsPool = (EnvProps *)malloc(maxNumEnvProps*sizeof(EnvProps));
-    for (int i = 0; i < maxNumEnvProps; i++) {
-        envPropsPool[i].isActive = false;
-    }
-
-    // Enemy Init
     Enemy *enemyPool = (Enemy *)malloc(maxNumEnemies*sizeof(Enemy));
-    for (int i = 0; i < maxNumEnemies; i++) {
-        enemyPool[i].isAlive = false;
-    }
-
-    // Particles
     Particle *particlePool = (Particle *)malloc(maxNumParticles*sizeof(Particle));
-    for (int i = 0; i < maxNumParticles; i++) {
-        particlePool[i].isActive = false;
-    }
-
-    // Pool de backgrounds. Sempre que um "sai" da tela, é destruído e um novo é gerado no "final" do mapa, mantendo sempre apenas 3 chunks
     Background *nearBackgroundPool = (Background *)malloc(numBackgroundRendered*sizeof(Background));
     Background *middleBackgroundPool = (Background *)malloc(numBackgroundRendered*sizeof(Background));
     Background *farBackgroundPool = (Background *)malloc(numBackgroundRendered*sizeof(Background));
+    int maxCount = 0;
     int numNearBackground = 0, numMiddleBackground = 0, numFarBackground = 0; // Usado para posicionamento correto das novas imagens geradas
+    maxCount = fmax(maxNumGrounds, maxNumGrenade);
+    maxCount = fmax(maxCount, maxNumEnvProps);
+    maxCount = fmax(maxCount, maxNumEnemies);
+    maxCount = fmax(maxCount, maxNumBullets);
+    maxCount = fmax(maxCount, numBackgroundRendered);
+    for (int i = 0; i < maxCount; i++) {
+        if (i < maxNumBullets) {
+            bulletsPool[i].isActive = false;
+        }
+
+        if (i < maxNumGrenade) {
+            grenadesPool[i].isActive = false;
+        }
+
+        if (i < maxNumGrounds) {
+            groundPool[i].isActive = false;
+        }
+
+        if (i < maxNumEnvProps) {
+            envPropsPool[i].isActive = false;
+        }
+
+        if (i < maxNumEnemies) {
+            enemyPool[i].isAlive = false;
+        }
+
+        if (i < maxNumParticles) {
+            particlePool[i].isActive = false;
+        }
+
+    }
+
+    // Criar chão
+    CreateGround(groundPool, (Vector2){0,screenHeight-150},screenWidth*7,5, true, true, false, false); // Chão (esse é sempre existente)
+    
+    // Criar chunks
     for (int i = 0; i < numBackgroundRendered; i++) {
         farBackgroundPool[i] = CreateBackground(&player, enemyPool, envPropsPool, farBackgroundPool, groundPool, backgroundAtlas, BACKGROUND, &numFarBackground, i);
         middleBackgroundPool[i] = CreateBackground(&player, enemyPool, envPropsPool, middleBackgroundPool, groundPool, midgroundAtlas, MIDDLEGROUND, &numMiddleBackground, i);
         nearBackgroundPool[i] = CreateBackground(&player, enemyPool, envPropsPool, nearBackgroundPool, groundPool, foregroundAtlas, FOREGROUND, &numNearBackground, i);
     }
 
-    // Main game loop
+    // Loop do jogo
     while (!WindowShouldClose()) {
+        // Game State
         if (IsKeyPressed(KEY_ESCAPE)) {
             if (gameState == ACTIVE) {
                 gameState = PAUSE;
@@ -97,15 +104,8 @@ int main(void) {
                 HideCursor();
             }
         }
-
-
-        // Usado para debbug
-        //Vector2 mousePosition = GetMousePosition();
-
-        if (IsMouseButtonPressed(0)) {
-           // CreateParticle(GetMousePosition(), (Vector2) {0, 0}, particlePool, SMOKE, 4, 0, (Vector2) {1, 1}, false);
-        }
-
+        
+        // Jogo em andamento
         if (gameState == ACTIVE) {
             // Atualizar fluxo
             float deltaTime = GetFrameTime();
@@ -114,51 +114,48 @@ int main(void) {
             // Atualizar player
             UpdatePlayer(&player, enemyPool, bulletsPool, grenadesPool, deltaTime, groundPool, envPropsPool, camMinX);
 
-            // Atualizar balas
-            for (int i = 0; i < maxNumBullets; i++) {
-                if (bulletsPool[i].isActive)
-                    UpdateBullets(&bulletsPool[i], enemyPool, &player, groundPool, envPropsPool, deltaTime);
-            }
-
-            // Atualizar granadas
-            for (int i = 0; i < maxNumGrenade; i++) {
-                if (grenadesPool[i].isActive)
-                    UpdateGrenades(&grenadesPool[i], enemyPool, &player, groundPool, envPropsPool, particlePool, deltaTime);
-            }
-
             // Atualizar limites de câmera e posição
             camMinX = (camMinX < camera.target.x - camera.offset.x ? camera.target.x - camera.offset.x : camMinX);
             UpdateClampedCameraPlayer(&camera, &player, deltaTime, screenWidth, screenHeight, &camMinX, camMaxX);
 
-            // Atualizar props
-            UpdateGrounds(&player, groundPool, deltaTime, camMinX);
+            for (int i = 0; i < maxCount; i++) {
+                if (i < maxNumBullets) {
+                    if (bulletsPool[i].isActive)
+                        UpdateBullets(&bulletsPool[i], enemyPool, &player, groundPool, envPropsPool, deltaTime);
+                }
 
-            //EnvProps
-            UpdateEnvProps(&player, envPropsPool, deltaTime, camMinX);
+                if (i < maxNumGrenade) {
+                    if (grenadesPool[i].isActive)
+                        UpdateGrenades(&grenadesPool[i], enemyPool, &player, groundPool, envPropsPool, particlePool, deltaTime);
+                }
 
-            /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-            // Atualizar chunks
-            /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+                if (i < maxNumGrounds) {
+                    if (groundPool[i].isActive) 
+                        UpdateGrounds(&player, &groundPool[i], deltaTime, camMinX);
+                    
+                }
 
-            // Layers de backgrounds
-            UpdateBackground(&player, nearBackgroundPool, foregroundAtlas, enemyPool, envPropsPool, groundPool, deltaTime, &numNearBackground, camMinX, &camMaxX);
-            UpdateBackground(&player, middleBackgroundPool, midgroundAtlas, enemyPool, envPropsPool, groundPool, deltaTime, &numMiddleBackground, camMinX, &camMaxX);
-            UpdateBackground(&player, farBackgroundPool, backgroundAtlas, enemyPool, envPropsPool, groundPool, deltaTime, &numFarBackground, camMinX, &camMaxX);
+                if (i < maxNumEnvProps) {
+                    if (envPropsPool[i].isActive)
+                        UpdateEnvProps(&player, &envPropsPool[i], groundPool, deltaTime, camMinX);
+                }
 
-            /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-            /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+                if (i < maxNumEnemies) {
+                    if (enemyPool[i].isAlive) 
+                        UpdateEnemy(&enemyPool[i], &player, bulletsPool, deltaTime, groundPool, envPropsPool);
+                }
 
-            // Atualizar inimigos
-            int numEnemies = 0;
-            for (int i = 0; i < maxNumEnemies; i++) {
-                if (enemyPool[i].isAlive) {
-                    UpdateEnemy(&enemyPool[i], &player, bulletsPool, deltaTime, groundPool, envPropsPool);
-                    numEnemies++;
+                if (i < maxNumParticles) {
+                    if (particlePool[i].isActive) 
+                        UpdateParticles(&particlePool[i], deltaTime, camMinX);
+                }
+
+                if (i < numBackgroundRendered) {
+                    UpdateBackground(&player, nearBackgroundPool, i, foregroundAtlas, enemyPool, envPropsPool, groundPool, deltaTime, &numNearBackground, camMinX, &camMaxX);
+                    UpdateBackground(&player, middleBackgroundPool, i, midgroundAtlas, enemyPool, envPropsPool, groundPool, deltaTime, &numMiddleBackground, camMinX, &camMaxX);
+                    UpdateBackground(&player, farBackgroundPool, i, backgroundAtlas, enemyPool, envPropsPool, groundPool, deltaTime, &numFarBackground, camMinX, &camMaxX);
                 }
             }
-
-            // Particles
-            UpdateParticles(particlePool, deltaTime, camMinX);
 
         }
 
@@ -170,71 +167,73 @@ int main(void) {
 
             BeginMode2D(camera);
 
-                // Desenhar os backgrounds
-                for (int i = 0; i < numBackgroundRendered; i++) {
-                    DrawTextureRec(farBackgroundPool[i].canvas.texture, (Rectangle) { 0, 0, (float)farBackgroundPool[i].canvas.texture.width, (float)-farBackgroundPool[i].canvas.texture.height },
-                    (Vector2) { farBackgroundPool[i].position.x, farBackgroundPool[i].position.y }, WHITE);
-                }       
-             // Desenhar os middlegrounds
-                for (int i = 0; i < numBackgroundRendered; i++) {
-                    DrawTextureRec(middleBackgroundPool[i].canvas.texture, (Rectangle) { 0, 0, (float)middleBackgroundPool[i].canvas.texture.width, (float)-middleBackgroundPool[i].canvas.texture.height },
-                    (Vector2) { middleBackgroundPool[i].position.x, middleBackgroundPool[i].position.y }, WHITE);
-                }       
-                // Desenhar os foregrounds
-                for (int i = 0; i < numBackgroundRendered; i++) {
-                    DrawTextureRec(nearBackgroundPool[i].canvas.texture, (Rectangle) { 0, 0, (float)nearBackgroundPool[i].canvas.texture.width, (float)-nearBackgroundPool[i].canvas.texture.height },
-                    (Vector2) { nearBackgroundPool[i].position.x, nearBackgroundPool[i].position.y }, WHITE);
-                }       
+            ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+            ///////////////////////// OS BACKGROUNDS PRECISAM SER DESENHADOS ANTES DE QUALQUER COISA
+            ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+            
+            // Desenhar os backgrounds
+            for (int i = 0; i < numBackgroundRendered; i++) {
+                DrawTextureRec(farBackgroundPool[i].canvas.texture, (Rectangle) { 0, 0, (float)farBackgroundPool[i].canvas.texture.width, (float)-farBackgroundPool[i].canvas.texture.height },
+                (Vector2) { farBackgroundPool[i].position.x, farBackgroundPool[i].position.y }, WHITE);
+            }       
+            // Desenhar os middlegrounds
+            for (int i = 0; i < numBackgroundRendered; i++) {
+                DrawTextureRec(middleBackgroundPool[i].canvas.texture, (Rectangle) { 0, 0, (float)middleBackgroundPool[i].canvas.texture.width, (float)-middleBackgroundPool[i].canvas.texture.height },
+                (Vector2) { middleBackgroundPool[i].position.x, middleBackgroundPool[i].position.y }, WHITE);
+            }       
+            // Desenhar os foregrounds
+            for (int i = 0; i < numBackgroundRendered; i++) {
+                DrawTextureRec(nearBackgroundPool[i].canvas.texture, (Rectangle) { 0, 0, (float)nearBackgroundPool[i].canvas.texture.width, (float)-nearBackgroundPool[i].canvas.texture.height },
+                (Vector2) { nearBackgroundPool[i].position.x, nearBackgroundPool[i].position.y }, WHITE);
+            }
 
-                // Draw grounds
-                for (int i = 0; i < maxNumGrounds; i++) {
+            ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+            ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+            ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////   
+
+            for (int i = 0; i < maxCount; i++) {
+                if (i < maxNumGrounds) {
                     if (groundPool[i].isActive)
                         if (!groundPool[i].isInvisible)
                             DrawRectangleRec(groundPool[i].rect, WHITE);
                 }
 
-                //EnvProps
-                for (int i = 0; i < maxNumEnvProps; i++) {
-                    if (envPropsPool[i].isActive) {
+                if (i < maxNumEnvProps) {
+                    if (envPropsPool[i].isActive) 
                         DrawTexturePro(envPropsAtlas, envPropsPool[i].frameRect, envPropsPool[i].drawableRect, (Vector2) {0, 0}, 0, WHITE);
-                    }
-                }   
+                }
 
-                // Draw player
-                DrawPlayer(&player, characterTexDiv, false);
-
-                // Draw Enemy
-                for (int i = 0; i < maxNumEnemies; i++) {
+                if (i < maxNumEnemies) {
                     if (enemyPool[i].isAlive) 
                         DrawEnemy(&enemyPool[i], enemyTex, false, false, false); //enemypool, enemytex, detecção, vida, colisão
                 }
 
-                // Draw bullets
-                for (int i = 0; i < maxNumBullets; i++) {
-                    if (bulletsPool[i].isActive) {
+                if (i < maxNumBullets) {
+                    if (bulletsPool[i].isActive) 
                         DrawBullet(&bulletsPool[i], miscAtlas, false); //bulletspool, miscAtlas, colisão                        
-                    }
                 }
 
-                // Draw grenades
-                for (int i = 0; i < maxNumGrenade; i++) {
-                    if (grenadesPool[i].isActive) {
-                        DrawGrenade(&grenadesPool[i], miscAtlas, false); //grenadespool, miscAtlas, colisão                        
-                    }
+                if (i < maxNumGrenade) {
+                    if (grenadesPool[i].isActive)
+                        DrawGrenade(&grenadesPool[i], miscAtlas, false); //grenadespool, miscAtlas, colisão      
                 }
 
-                // Draw particles
-                for (int i = 0; i < maxNumParticles; i++) {
-                    if (particlePool[i].isActive) {
+                if (i < maxNumParticles) {
+                    if (particlePool[i].isActive) 
                         DrawParticle(&particlePool[i], miscAtlas); //grenadespool, miscAtlas                        
-                    }
                 }
+
+            }
+
+            // Draw player
+            DrawPlayer(&player, characterTexDiv, false);
 
         EndMode2D();
 
         //Chão
-        DrawRectangle(0, screenHeight-150, screenWidth, 150, LIGHTGRAY);
-        // TODO o que está nessa região fica "parado" em relação à câmera
+        //DrawRectangle(0, screenHeight-150, screenWidth, 150, LIGHTGRAY);
+        
+        DrawFPS(screenWidth-200, 0);
 
         // HUD
         // Timer
@@ -252,7 +251,7 @@ int main(void) {
         sprintf(temp, "%d", sec);
         strcat(timer, temp);
         DrawText(timer, screenWidth/2 - 40*5/2, 20, 40, WHITE);
-
+        
         // Player HP
         int HPBarWidth = 250;
         float percentHP = ((float) player.entity.currentHP / (float) player.entity.maxHP);
@@ -437,65 +436,89 @@ void CreateEnemy(Enemy *enemyPool, enum ENEMY_CLASSES class, Vector2 position, i
             newEnemy->entity.width = width;
             newEnemy->entity.height = height;
             newEnemy->entity.lowerAnimation.animationFrameSpeed = 0.10f;
-            newEnemy->entity.lowerAnimation.animationFrameWidth = PLAYER_GRID[0];//BOSS_GRID[0];
-            newEnemy->entity.lowerAnimation.animationFrameHeight = PLAYER_GRID[1];//BOSS_GRID[1];
             newEnemy->entity.lowerAnimation.currentAnimationFrame = 0;
             newEnemy->entity.lowerAnimation.currentAnimationState = IDLE;
             newEnemy->entity.lowerAnimation.isFacingRight = 1;
             newEnemy->entity.lowerAnimation.timeSinceLastFrame = 0;
             newEnemy->entity.lowerAnimation.currentAnimationFrameRect.x = 0.0f;
             newEnemy->entity.lowerAnimation.currentAnimationFrameRect.y = 0.0f;
-            newEnemy->entity.lowerAnimation.currentAnimationFrameRect.width = newEnemy->entity.lowerAnimation.animationFrameWidth;
-            newEnemy->entity.lowerAnimation.currentAnimationFrameRect.height = newEnemy->entity.lowerAnimation.animationFrameHeight;
             newEnemy->entity.upperAnimation.animationFrameSpeed = 0.10f;
-            newEnemy->entity.upperAnimation.animationFrameWidth = PLAYER_GRID[0];//BOSS_GRID[0];
-            newEnemy->entity.upperAnimation.animationFrameHeight = PLAYER_GRID[1];//BOSS_GRID[1];
             newEnemy->entity.upperAnimation.currentAnimationFrame = 0;
             newEnemy->entity.upperAnimation.currentAnimationState = IDLE;
             newEnemy->entity.upperAnimation.isFacingRight = 1;
             newEnemy->entity.upperAnimation.timeSinceLastFrame = 0;
             newEnemy->entity.upperAnimation.currentAnimationFrameRect.x = 0.0f;
             newEnemy->entity.upperAnimation.currentAnimationFrameRect.y = 0.0f;
-            newEnemy->entity.upperAnimation.currentAnimationFrameRect.width = newEnemy->entity.upperAnimation.animationFrameWidth;
-            newEnemy->entity.upperAnimation.currentAnimationFrameRect.height = newEnemy->entity.upperAnimation.animationFrameHeight;
             newEnemy->entity.characterWidthScale = 1.00f;
             newEnemy->entity.characterHeightScale = 1.00f;
-
-            newEnemy->entity.drawableRect = (Rectangle) {position.x - width/2, position.y - height/2, width * newEnemy->entity.characterWidthScale, height * newEnemy->entity.characterHeightScale};
-            newEnemy->entity.collisionBox = (Rectangle) {position.x - width/2, position.y - height/2, width * 0.8f, height};
-            newEnemy->entity.collisionHead = (Circle) {(Vector2){position.x - width/2, position.y - height/2}, width * 0.8f};
+            newEnemy->entity.lowerAnimation.animationFrameWidth = 0;
+            newEnemy->entity.lowerAnimation.animationFrameHeight = 0;
+            newEnemy->entity.upperAnimation.animationFrameWidth = 0;
+            newEnemy->entity.upperAnimation.animationFrameHeight = 0;
 
             //Valores para range de ataque e de visão selecionados de forma arbitraria, atualizar posteriormente
             newEnemy->entity.maxHP = 500;
             newEnemy->entity.currentHP = newEnemy->entity.maxHP;
             switch (class){
                 case SWORDSMAN:
+                    newEnemy->entity.lowerAnimation.animationFrameWidth = PLAYER_GRID[0];//BOSS_GRID[0];
+                    newEnemy->entity.lowerAnimation.animationFrameHeight = PLAYER_GRID[1];//BOSS_GRID[1];
+                    newEnemy->entity.upperAnimation.animationFrameWidth = PLAYER_GRID[0];//BOSS_GRID[0];
+                    newEnemy->entity.upperAnimation.animationFrameHeight = PLAYER_GRID[1];//BOSS_GRID[1];
                     newEnemy->viewDistance = 600;
                     newEnemy->attackRange = 0;
                     newEnemy->attackSpeed = 0.8f; // Ataques por segundo
-                    
+                    break;
+                case ASSASSIN:
+                    newEnemy->entity.lowerAnimation.animationFrameWidth = ASSASSIN_GRID[0];//BOSS_GRID[0];
+                    newEnemy->entity.lowerAnimation.animationFrameHeight = ASSASSIN_GRID[1];//BOSS_GRID[1];
+                    newEnemy->entity.upperAnimation.animationFrameWidth = ASSASSIN_GRID[0];//BOSS_GRID[0];
+                    newEnemy->entity.upperAnimation.animationFrameHeight = ASSASSIN_GRID[1];//BOSS_GRID[1];
+                    newEnemy->viewDistance = 600;
+                    newEnemy->attackRange = 30;
+                    newEnemy->attackSpeed = 0.8f; // Ataques por segundo
                     break;
                 case GUNNER:
+                    newEnemy->entity.lowerAnimation.animationFrameWidth = PLAYER_GRID[0];//BOSS_GRID[0];
+                    newEnemy->entity.lowerAnimation.animationFrameHeight = PLAYER_GRID[1];//BOSS_GRID[1];
+                    newEnemy->entity.upperAnimation.animationFrameWidth = PLAYER_GRID[0];//BOSS_GRID[0];
+                    newEnemy->entity.upperAnimation.animationFrameHeight = PLAYER_GRID[1];//BOSS_GRID[1];
                     newEnemy->viewDistance = 600;
                     newEnemy->attackRange = 200;
                     newEnemy->attackSpeed = 0.8f; // Ataques por segundo
                     break;
                 case SNIPERSHOOTER:
+                    newEnemy->entity.lowerAnimation.animationFrameWidth = PLAYER_GRID[0];//BOSS_GRID[0];
+                    newEnemy->entity.lowerAnimation.animationFrameHeight = PLAYER_GRID[1];//BOSS_GRID[1];
+                    newEnemy->entity.upperAnimation.animationFrameWidth = PLAYER_GRID[0];//BOSS_GRID[0];
+                    newEnemy->entity.upperAnimation.animationFrameHeight = PLAYER_GRID[1];//BOSS_GRID[1];
                     newEnemy->viewDistance = 1000;
                     newEnemy->attackRange = 1000;
                     newEnemy->attackSpeed = 0.8f; // Ataques por segundo
                     break;
                 case DRONE:
+                    newEnemy->entity.lowerAnimation.animationFrameWidth = PLAYER_GRID[0];//BOSS_GRID[0];
+                    newEnemy->entity.lowerAnimation.animationFrameHeight = PLAYER_GRID[1];//BOSS_GRID[1];
+                    newEnemy->entity.upperAnimation.animationFrameWidth = PLAYER_GRID[0];//BOSS_GRID[0];
+                    newEnemy->entity.upperAnimation.animationFrameHeight = PLAYER_GRID[1];//BOSS_GRID[1];
                     newEnemy->viewDistance = 600;
                     newEnemy->attackRange = 200;
                     newEnemy->attackSpeed = 0.8f; // Ataques por segundo
                     break;
                 case TURRET:
+                    newEnemy->entity.lowerAnimation.animationFrameWidth = PLAYER_GRID[0];//BOSS_GRID[0];
+                    newEnemy->entity.lowerAnimation.animationFrameHeight = PLAYER_GRID[1];//BOSS_GRID[1];
+                    newEnemy->entity.upperAnimation.animationFrameWidth = PLAYER_GRID[0];//BOSS_GRID[0];
+                    newEnemy->entity.upperAnimation.animationFrameHeight = PLAYER_GRID[1];//BOSS_GRID[1];
                     newEnemy->viewDistance = 600;
                     newEnemy->attackRange = 200;
                     newEnemy->attackSpeed = 0.8f; // Ataques por segundo
                     break;
                 case BOSS:
+                    newEnemy->entity.lowerAnimation.animationFrameWidth = PLAYER_GRID[0];//BOSS_GRID[0];
+                    newEnemy->entity.lowerAnimation.animationFrameHeight = PLAYER_GRID[1];//BOSS_GRID[1];
+                    newEnemy->entity.upperAnimation.animationFrameWidth = PLAYER_GRID[0];//BOSS_GRID[0];
+                    newEnemy->entity.upperAnimation.animationFrameHeight = PLAYER_GRID[1];//BOSS_GRID[1];
                     newEnemy->viewDistance = 600;
                     newEnemy->attackRange = 200;
                     newEnemy->attackSpeed = 0.8f; // Ataques por segundo
@@ -503,6 +526,15 @@ void CreateEnemy(Enemy *enemyPool, enum ENEMY_CLASSES class, Vector2 position, i
                 default:
                     break;
             }
+        
+            newEnemy->entity.lowerAnimation.currentAnimationFrameRect.width = newEnemy->entity.lowerAnimation.animationFrameWidth;
+            newEnemy->entity.lowerAnimation.currentAnimationFrameRect.height = newEnemy->entity.lowerAnimation.animationFrameHeight;
+            newEnemy->entity.upperAnimation.currentAnimationFrameRect.width = newEnemy->entity.upperAnimation.animationFrameWidth;
+            newEnemy->entity.upperAnimation.currentAnimationFrameRect.height = newEnemy->entity.upperAnimation.animationFrameHeight;
+
+            newEnemy->entity.drawableRect = (Rectangle) {position.x - width/2, position.y - height/2, width * newEnemy->entity.characterWidthScale, height * newEnemy->entity.characterHeightScale};
+            newEnemy->entity.collisionBox = (Rectangle) {position.x - width/2, position.y - height/2, width * 0.8f, height};
+            newEnemy->entity.collisionHead = (Circle) {(Vector2){position.x - width/2, position.y - height/2}, width * 0.8f};
 
             return;
         }
@@ -663,25 +695,6 @@ void CreateParticle(Vector2 srcPosition, Vector2 velocity, Particle *particlePoo
 
             return;
         }
-    }
-}
-
-void PopulateChunk(int chunkId, EnvProps *envPropsPool, Ground *groundPool, Enemy *enemyPool) {
-    // chunkId -> posição do chunk para correto posicionamento
-    int objAdditions = 0;
-    int enemyAdditions = 0;
-    // Popular com objetos
-    int objProb = 60; // 5% de chance de ter um objeto
-    int enemyProb = 70; // 15% de chance de ter um inimigo
-    if (GetRandomValue(1,100) <= objProb) {
-        objAdditions++;
-        int obType = GetRandomValue(METAL_CRATE, GARBAGE_BAG2);
-        CreateEnvProp(envPropsPool, groundPool, obType, (Vector2) {chunkId*screenWidth + GetRandomValue(5, 10) + objAdditions*200, screenHeight-150-200}, 200, 200);
-    }
-    if (GetRandomValue(1,100) <= enemyProb) {
-        enemyAdditions++;
-        int enClass = GetRandomValue(SWORDSMAN, BOSS);
-        CreateEnemy(enemyPool, enClass, (Vector2) {chunkId*screenWidth + GetRandomValue(50, 100) + enemyAdditions*3, screenHeight-250}, 122, 122);
     }
 }
 
@@ -846,7 +859,12 @@ Camera2D CreateCamera (Vector2 target, Vector2 offset, float rotation, float zoo
 }
 
 void DestroyEnvProp(EnvProps *envPropsPool, Ground *groundsPool, int envPropID) {
-    EnvProps *envProp = envPropsPool + envPropID;
+    EnvProps *envProp;
+    if (envPropID != -1) 
+        envProp = envPropsPool + envPropID;
+    else
+        envProp = envPropsPool;
+
     int groundId = envProp->groundID;
     Ground *ground = groundsPool + groundId;
     ground->isActive = false;
@@ -923,7 +941,7 @@ void UpdatePlayer(Player *player, Enemy *enemy, Bullet *bulletPool, Grenade *gre
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     // Handler de física e gráfico do player                          ///////////////////////////////////////////////////////////////////////
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    PhysicsAndGraphicsHandlers(&(player->entity), delta, currentLowerState, currentUpperState);
+    PhysicsAndGraphicsHandlers(&(player->entity), delta, currentLowerState, currentUpperState, PLAYER, BOSS);
 
     // Limitar posição do player de acordo com o avanço da câmera
     if (player->entity.position.x < minX + player->entity.width/2) {
@@ -967,7 +985,7 @@ void UpdateEnemy(Enemy *enemy, Player *player, Bullet *bulletPool, float delta, 
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     // Handler de física e gráfico do enemy                           ///////////////////////////////////////////////////////////////////////
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    PhysicsAndGraphicsHandlers(&(enemy->entity), delta, currentLowerState, currentUpperState);
+    PhysicsAndGraphicsHandlers(&(enemy->entity), delta, currentLowerState, currentUpperState, ENEMY, enemy->class);
 
     eEnt->drawableRect = (Rectangle) {eEnt->position.x, eEnt->position.y, eEnt->width * eEnt->characterWidthScale,eEnt->height * eEnt->characterHeightScale};
     eEnt->collisionBox = (Rectangle) {eEnt->position.x  - eEnt->width/2 + (eEnt->lowerAnimation.isFacingRight == -1 ? 0.3f : 0.15f) * eEnt->width, eEnt->position.y - eEnt->height/2, eEnt->width * 0.5f, eEnt->height};
@@ -1195,101 +1213,83 @@ void UpdateClampedCameraPlayer(Camera2D *camera, Player *player, float delta, in
 }
 
 void UpdateGrounds(Player *player, Ground *ground, float delta, float minX) {
-    for (int i = 0; i < maxNumGrounds; i++) {
-        Ground *curGround = ground + i;
-        if (curGround->isActive) {
-            if (curGround->followCamera)
-                curGround->rect.x = minX;
+    if (ground->followCamera)
+        ground->rect.x = minX;
 
-            if (curGround->rect.x + curGround->rect.width < minX) 
-                curGround->isActive = false;
+    if (ground->rect.x + ground->rect.width < minX) 
+        ground->isActive = false;
+}
+
+void UpdateEnvProps(Player *player, EnvProps *envPropsPool, Ground *groundsPool, float delta, float minX) {
+    if (envPropsPool->drawableRect.x + envPropsPool->drawableRect.width < minX) 
+        DestroyEnvProp(envPropsPool, groundsPool, -1);
+}
+
+void UpdateParticles(Particle *curParticle, float delta, float minX) {
+    if (curParticle->isActive) {
+        if (curParticle->drawableRect.x + curParticle->drawableRect.width < minX)  {
+            curParticle->isActive = false;
         }
+
+        curParticle->lifeTime += delta;
+        curParticle->timeSinceLastFrame += delta;
+
+        curParticle->position.x += curParticle->velocity.x * delta;
+        curParticle->position.y += curParticle->velocity.y * delta;
+        curParticle->angle += curParticle->angularVelocity * delta;
+        if (curParticle->scaleUp) {
+            curParticle->scale++;
+            if (curParticle->scale >= curParticle->scaleRange.y) {
+                curParticle->scale = curParticle->scaleRange.y;
+                curParticle->scaleUp = false;
+            }
+        } else {
+            curParticle->scale--;
+            if (curParticle->scale <= curParticle->scaleRange.x) {
+                curParticle->scale = curParticle->scaleRange.x;
+                curParticle->scaleUp = true;
+            }
+        }
+
+
+
+        // TODO fazer partícula
+        // Animação
+        if (curParticle->timeSinceLastFrame >= curParticle->animationFrameSpeed) {
+            curParticle->timeSinceLastFrame = 0.0f;
+            curParticle->currentAnimationFrame++;
+            if (curParticle->currentAnimationFrame > curParticle->numFrames - 1) { 
+                if (curParticle->loopAllowed) {
+                    curParticle->currentAnimationFrame = 0;
+                } else {
+                    curParticle->isActive = false;
+                }
+            }
+        }
+    
+        curParticle->frameRect.x = curParticle->currentAnimationFrame * curParticle->frameRect.width;
+        curParticle->frameRect.y = curParticle->frameRow * curParticle->frameRect.height;
+
+        curParticle->drawableRect = (Rectangle) {curParticle->position.x, curParticle->position.y, curParticle->frameRect.width * curParticle->scale, curParticle->frameRect.height * curParticle->scale};
     }
 }
 
-void UpdateEnvProps(Player *player, EnvProps *envPropsPool, float delta, float minX) {
-    for (int i = 0; i < maxNumEnvProps; i++) {
-        EnvProps *curEnvProp = envPropsPool + i;
-        if (curEnvProp->isActive) {
-            if (curEnvProp->drawableRect.x + curEnvProp->drawableRect.width < minX) 
-                curEnvProp->isActive = false;
-        }
-    }
-}
-
-void UpdateParticles(Particle *particlePool, float delta, float minX) {
-    for (int i = 0; i < maxNumParticles; i++) {
-        Particle *curParticle = particlePool + i;
-        if (curParticle->isActive) {
-            if (curParticle->drawableRect.x + curParticle->drawableRect.width < minX)  {
-                curParticle->isActive = false;
-            }
-
-            curParticle->lifeTime += delta;
-            curParticle->timeSinceLastFrame += delta;
-
-            curParticle->position.x += curParticle->velocity.x * delta;
-            curParticle->position.y += curParticle->velocity.y * delta;
-            curParticle->angle += curParticle->angularVelocity * delta;
-            if (curParticle->scaleUp) {
-                curParticle->scale++;
-                if (curParticle->scale >= curParticle->scaleRange.y) {
-                    curParticle->scale = curParticle->scaleRange.y;
-                    curParticle->scaleUp = false;
-                }
-            } else {
-                curParticle->scale--;
-                if (curParticle->scale <= curParticle->scaleRange.x) {
-                    curParticle->scale = curParticle->scaleRange.x;
-                    curParticle->scaleUp = true;
-                }
-            }
-
-
-
-            // TODO fazer partícula
-            // Animação
-            if (curParticle->timeSinceLastFrame >= curParticle->animationFrameSpeed) {
-                curParticle->timeSinceLastFrame = 0.0f;
-                curParticle->currentAnimationFrame++;
-                if (curParticle->currentAnimationFrame > curParticle->numFrames - 1) { 
-                    if (curParticle->loopAllowed) {
-                        curParticle->currentAnimationFrame = 0;
-                    } else {
-                        curParticle->isActive = false;
-                    }
-                }
-            }
-        
-            curParticle->frameRect.x = curParticle->currentAnimationFrame * curParticle->frameRect.width;
-            curParticle->frameRect.y = curParticle->frameRow * curParticle->frameRect.height;
-
-            curParticle->drawableRect = (Rectangle) {curParticle->position.x, curParticle->position.y, curParticle->frameRect.width * curParticle->scale, curParticle->frameRect.height * curParticle->scale};
-        }
-    }
-}
-
-void UpdateBackground(Player *player, Background *backgroundPool, Texture2D srcAtlas, Enemy *enemyPool, EnvProps *envPropsPool, Ground *groundPool, float delta, int *numBackground, float minX, float *maxX) {
-
-    for (int i = 0; i < numBackgroundRendered; i++) {
-        Background *bgP = backgroundPool + i;
-        bgP->position.x = (bgP->originalX - minX*bgP->relativePosition);
-        if (bgP->position.x+bgP->width < minX) {
-            //"Deletar" bg e criar um novo
-            BeginTextureMode(bgP->canvas);
-            ClearBackground(GetColor(0x052c46ff));
-            EndTextureMode();
-            UnloadRenderTexture(bgP->canvas);
-            *bgP = CreateBackground(player, enemyPool, envPropsPool, backgroundPool, groundPool, srcAtlas, bgP->bgType, numBackground, i);
-            if (*maxX <= bgP->position.x + bgP->width)
-                *maxX = bgP->position.x + bgP->width;
-        }
+void UpdateBackground(Player *player, Background *backgroundPool, int i, Texture2D srcAtlas, Enemy *enemyPool, EnvProps *envPropsPool, Ground *groundPool, float delta, int *numBackground, float minX, float *maxX) {
+    Background *bgP = backgroundPool + i;
+    bgP->position.x = (bgP->originalX - minX*bgP->relativePosition);
+    if (bgP->position.x+bgP->width < minX) {
+        //"Deletar" bg e criar um novo
+        BeginTextureMode(bgP->canvas);
+        ClearBackground(GetColor(0x052c46ff));
+        EndTextureMode();
+        UnloadRenderTexture(bgP->canvas);
+        *bgP = CreateBackground(player, enemyPool, envPropsPool, backgroundPool, groundPool, srcAtlas, bgP->bgType, numBackground, i);
+        if (*maxX <= bgP->position.x + bgP->width)
+            *maxX = bgP->position.x + bgP->width;
     }
 }
 
 void DrawEnemy(Enemy *enemy, Texture2D *texture, bool drawDetectionCollision, bool drawLife, bool drawCollisionBox) {
-    // Draw inimigos
-
     // Draw campo de visão
     if (drawDetectionCollision) {
         float eyesX = enemy->entity.position.x + enemy->entity.eyesOffset.x;
@@ -1315,6 +1315,8 @@ void DrawEnemy(Enemy *enemy, Texture2D *texture, bool drawDetectionCollision, bo
         DrawRectangle(enemy->entity.collisionBox.x, enemy->entity.collisionBox.y, enemy->entity.collisionBox.width, enemy->entity.collisionBox.height, WHITE);
         DrawCircle(enemy->entity.collisionHead.center.x, enemy->entity.collisionHead.center.y, enemy->entity.collisionHead.radius, YELLOW);
     }
+
+    // Draw inimigos
     DrawTexturePro(texture[enemy->class], enemy->entity.lowerAnimation.currentAnimationFrameRect, enemy->entity.drawableRect, (Vector2) {enemy->entity.width/2, enemy->entity.height/2}, 0, WHITE);
     DrawTexturePro(texture[enemy->class], enemy->entity.upperAnimation.currentAnimationFrameRect, enemy->entity.drawableRect, (Vector2) {enemy->entity.width/2, enemy->entity.height/2}, 0, WHITE);
 }
@@ -1489,7 +1491,7 @@ void GenerateForeground(RenderTexture2D canvas, Ground *groundPool, Texture atla
                 if (i == numFloor - 1) { // teto
                     overhang = 7;
                     buildingRow = FOREGROUND_ROOF_ROW;
-                    CreateGround(groundPool,(Vector2) {100+j*frameHeight-overhang + relativeXPos*canvas.texture.width, (canvas.texture.height - 150) - (i)*(frameHeight)-50}, frameWidth+2*overhang, 20, true, false, false, true);
+                    CreateGround(groundPool,(Vector2) {100+j*frameHeight-overhang + relativeXPos*canvas.texture.width, (canvas.texture.height - 150) - (i)*(frameHeight)-50}, frameWidth+2*overhang, 20, true, false, false, false);
                 }
                 DrawTexturePro(atlas, (Rectangle){style*frameWidth, buildingRow*frameHeight, isFlipped*frameWidth, frameHeight},
                     (Rectangle){100+j*frameHeight-overhang, (canvas.texture.height - 150) - (i+1)*(frameHeight), frameWidth+2*overhang, frameHeight}, // deslocado 150 pixels acima do fundo da tela
