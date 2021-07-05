@@ -4,10 +4,12 @@
 #include <time.h>
 #include <math.h>
 #include "raylib.h"
+#include "frameMapping.c"
 
 
 // Enums
-enum CHARACTER_STATE{IDLE, WALKING, HURT, JUMPING, FALLING, ATTACKING, DYING, DEAD};
+enum GAME_STATE{MENU, ACTIVE, PAUSE, GAMEOVER, SCORE};
+enum CHARACTER_STATE{IDLE, WALKING, JUMPING, FALLING, ATTACKING, THROWING, DYING, DEAD};
 enum CHARACTER_AIMING{FORWARD, UP45, DOWN45};
 enum ENTITY_TYPES{PLAYER, ENEMY};
 enum ENEMY_BEHAVIOR{NONE, ATTACK, MOVE};
@@ -18,20 +20,24 @@ enum FOREGROUND_STYLE{RESIDENTIAL};
 enum BULLET_TYPE{MAGNUM, SNIPER, LASER};
 enum ENEMY_CLASSES{SWORDSMAN, GUNNER, SNIPERSHOOTER, DRONE, TURRET, BOSS};
 enum OBJECTS_TYPES {METAL_CRATE, AMMO_CRATE, HP_CRATE, CARD_CRATE1, CARD_CRATE2, CARD_CRATE3, TRASH_BIN, EXPLOSIVE_BARREL, METAL_BARREL, GARBAGE_BAG1, GARBAGE_BAG2, TRASH_CONTAINER, ROAD_BLOCK};
+enum PARTICLE_TYPES {EXPLOSION, SMOKE, BLOOD_SPILL, MAGNUM_SHOOT};
 
 // Consts
 const float GRAVITY = 400; // 400 px / f²
 const float bulletLifeTime = 4; // 4 s
+const float grenadeExplosionTime = 4; // 4 s
 const static int numBackgroundRendered = 7;
 const static int maxNumBullets = 100;
-const static int maxNumEnemies = 20;
+const static int maxNumParticles = 500;
+const static int maxNumGrenade = 50;
+const static int maxNumEnemies = 60;
 const static int maxNumGrounds = 300;
 const static int maxNumEnvProps = 50;
 const static int numEnemyClasses = 6;
 const int screenWidth = 1920;
 const int screenHeight = 1080;
 const char gameName[30] = "Project N30-N";
-bool isFullscreen = false;
+bool isFullscreen = true;
 
 // Structs
 typedef struct circle {
@@ -52,8 +58,14 @@ typedef struct animation {
 } Animation;
 
 typedef struct entity {
+    enum ENTITY_TYPES type;
     int maxHP;
     int currentHP;
+    float characterWidthScale;
+    float characterHeightScale;
+    Rectangle drawableRect;
+    Rectangle collisionBox;
+    Circle collisionHead;
     Vector2 position;
     Vector2 velocity;
     Vector2 momentum;
@@ -62,18 +74,13 @@ typedef struct entity {
     float jumpSpeed;
     bool isGrounded;
     Vector2 eyesOffset;
-    float characterWidthScale;
-    float characterHeightScale;
     Animation upperAnimation;
     Animation lowerAnimation;
     int width;
     int height;
-    Rectangle drawableRect;
-    Rectangle collisionBox;
-    Circle collisionHead;
+    int grenadeAmmo;
 
-    ////////
-
+    //////// Handlers para controlar tiros nas diagonais
     bool upPressed;
     bool downPressed;
 
@@ -82,8 +89,6 @@ typedef struct entity {
 typedef struct player
 {
     Entity entity;
-    int currentWeaponID;
-    int currentAmmo;
 
 }  Player;
 
@@ -91,6 +96,7 @@ typedef struct enemy
 {
     Entity entity;
     Vector2 target;
+    int id;
     enum ENEMY_CLASSES class;
     enum ENEMY_BEHAVIOR behavior;
     int viewDistance;
@@ -133,6 +139,7 @@ typedef struct background {
     RenderTexture2D canvas;
     Texture2D atlas;
     Vector2 position;
+    int id;
     int originalX;
     float scale;
     int width;
@@ -143,21 +150,33 @@ typedef struct background {
 
 
 typedef struct particle {
-    Texture2D animTex;
+    int id;
     Vector2 position;
-    int numFrames;
-    int currentFrame;
-    int frameRow; // Só será usada se for um atlas para as partículas. Em caso de arquivo individual, pode deletar a variável
-    int loopAllowed;
+    Vector2 velocity;
+    Rectangle drawableRect;
+    Rectangle frameRect;
+    enum PARTICLE_TYPES type;
     float animationFrameSpeed;
-    Vector2 scaleRange;
+    int numFrames;
+    int frameRow; // Só será usada se for um atlas para as partículas. Em caso de arquivo individual, pode deletar a variável
+    int currentAnimationFrame;
+    float timeSinceLastFrame;
+    float angle;
     float angularVelocity;
+    Vector2 scaleRange;
+    float scale;
+    bool scaleUp;
+    int loopAllowed;
+    int isFacingRight;
+    float timeToDestroy;
     float lifeTime;
+    bool isActive;
 
 } Particle;
 
 typedef struct bullet {
     Vector2 position;
+    int id;
     float angle;
     Animation animation;
     enum ENTITY_TYPES srcEntity;
@@ -173,10 +192,30 @@ typedef struct bullet {
 
 } Bullet;
 
+typedef struct grenade {
+    Vector2 position;
+    Vector2 velocity;
+    int id;
+    float angle;
+    Animation animation;
+    enum ENTITY_TYPES srcEntity;
+    Vector2 direction;
+    int width;
+    int height;
+    float power;
+    float lifeTime;
+    bool isActive;
+    Rectangle drawableRect;
+    Circle collisionCircle;
+
+} Grenade;
+
 typedef struct envProps {
-    Rectangle groundRect;
-    Rectangle frameRect;
+    int id;
+    int groundID;
     enum OBJECTS_TYPES type;
+    Rectangle collisionRect;
+    Rectangle frameRect;
     Rectangle drawableRect;
     bool isDestroyable;
     bool isCollectable;
@@ -186,30 +225,40 @@ typedef struct envProps {
 // Headers
 Texture2D CreateTexture(enum BACKGROUND_TYPES bgLayer, Image srcAtlas);
 void CreateBullet(Entity *entity, Bullet *bulletsPool, enum BULLET_TYPE bulletType, enum ENTITY_TYPES srcEntity);
-void CreateGround(Ground *groundPool, Vector2 position, int width, int height, bool canBeStepped, bool followCamera, bool blockPlayer, bool isInvisible, bool isActive);
-void CreateEnvProp(EnvProps *envPropsPool, Ground *groundPool, enum OBJECTS_TYPES obType, Vector2 position, int width, int height, bool isActive);
-Background CreateBackground(Player *player, Background *backgroundPool, Ground *groundPool, Texture2D srcAtlas, enum BACKGROUND_TYPES bgType, int *numBackground);
+int CreateGround(Ground *groundPool, Vector2 position, int width, int height, bool canBeStepped, bool followCamera, bool blockPlayer, bool isInvisible);
+void CreateEnvProp(EnvProps *envPropsPool, Ground *groundPool, enum OBJECTS_TYPES obType, Vector2 position, int width, int height);
+Background CreateBackground(Player *player, Enemy *enemyPool, EnvProps *envPropsPool, Background *backgroundPool, Ground *groundPool, Texture2D srcAtlas, enum BACKGROUND_TYPES bgType, int *numBackground, int id);
 Camera2D CreateCamera (Vector2 target, Vector2 offset, float rotation, float zoom);
 Player CreatePlayer(int maxHP, Vector2 position, int width, int height);
-Enemy CreateEnemy(enum ENEMY_CLASSES class, int maxHP, Vector2 position, int width, int height);
+void CreateEnemy(Enemy *enemyPool, enum ENEMY_CLASSES class, Vector2 position, int width, int height);
+void CreateGrenade(Entity *entity, Grenade *grenadePool, enum ENTITY_TYPES srcEntity);
+void CreateParticle(Vector2 srcPosition, Vector2 velocity, Particle *particlePool, enum PARTICLE_TYPES type, float animTime, float angularVelocity, Vector2 scaleRange, bool isLoopable, int facingRight);
 
-void UpdateBackground(Player *player, Background *backgroundPool, Texture2D srcAtlas, Ground *groundPool, float delta, int *numBackground, float minX, float *maxX);
+void DestroyEnvProp(EnvProps *envPropsPool, Ground *groundsPool, int envPropID);
+
+void UpdateBackground(Player *player, Background *backgroundPool, Texture2D srcAtlas, Enemy *enemyPool, EnvProps *envPropsPool, Ground *groundPool, float delta, int *numBackground, float minX, float *maxX);
 void UpdateClampedCameraPlayer(Camera2D *camera, Player *player, float delta, int width, int height, float *minX, float maxX);
-void UpdatePlayer(Player *player, Enemy *enemy, Bullet *bulletPool, float delta, Ground *ground, EnvProps *envProps, float minX);
+void UpdatePlayer(Player *player, Enemy *enemy, Bullet *bulletPool, Grenade *grenadePool, float delta, Ground *ground, EnvProps *envProps, float minX);
 void UpdateBullets(Bullet *bullet, Enemy *enemy, Player *player, Ground *ground, EnvProps *envProp, float delta);
 void UpdateEnemy(Enemy *enemy, Player *player, Bullet *bulletPool, float delta, Ground *ground, EnvProps *envProps);
 void UpdateGrounds(Player *player, Ground *ground, float delta, float minX);
 void UpdateEnvProps(Player *player, EnvProps *envPropsPool, float delta, float minX);
+void UpdateGrenades(Grenade *grenade, Enemy *enemy, Player *player, Ground *ground, EnvProps *envProp, Particle *particlePool, float delta);
+void UpdateParticles(Particle *particlePool, float delta, float minX);
 
 void DrawEnemy(Enemy *enemy, Texture2D *texture, bool drawDetectionCollision, bool drawLife, bool drawCollisionBox);
 void DrawBullet(Bullet *bullet, Texture2D texture, bool drawCollisionBox);
 void DrawPlayer(Player *player, Texture2D texture, bool drawCollisionBox);
+void DrawGrenade(Grenade *grenade, Texture2D texture, bool drawCollisionCircle);
+void DrawParticle(Particle *particle, Texture2D texture);
 
 RenderTexture2D PaintCanvas(Texture2D atlas, enum BACKGROUND_TYPES bgLayer, Ground *groundPool, int relativeXPos);
 
 void GenerateBackground(RenderTexture2D canvas, Texture atlas, enum BACKGROUND_STYLE bgStyle);
 void GenerateMidground(RenderTexture2D canvas, Texture atlas, enum MIDDLEGROUND_STYLE mgStyle);
 void GenerateForeground(RenderTexture2D canvas, Ground *groundPool, Texture atlas, enum FOREGROUND_STYLE fgStyle, int relativeXPos);
+
+void PopulateChunk(int chunkId, EnvProps *envPropsPool, Ground *groundPool, Enemy *enemyPool);
 
 void TurnAround(Entity *ent) {
     ent->lowerAnimation.isFacingRight *= -1;
@@ -259,7 +308,7 @@ void SteeringBehavior(Enemy *enemy, Player *player, Bullet *bulletPool, float de
 
     Rectangle playerBox = (Rectangle) {pEnt->position.x, pEnt->position.y, pEnt->lowerAnimation.animationFrameWidth * pEnt->characterWidthScale, pEnt->lowerAnimation.animationFrameHeight * pEnt->characterHeightScale};
     
-    if ((enemy->entity.lowerAnimation.currentAnimationState != DYING) && (enemy->entity.lowerAnimation.currentAnimationState != HURT)) {
+    if ((enemy->entity.lowerAnimation.currentAnimationState != DYING)) {// && (enemy->entity.lowerAnimation.currentAnimationState != HURT)) {
         if (CheckCollisionRecs(detectionBox, playerBox)) { // Se houver detecção, setar target
             enemy->noDetectionTime = 0;
             if (enemy->behavior == NONE) { // Se não tiver target
@@ -359,10 +408,6 @@ void PlayEntityAnimation(Entity *entity, float delta, Animation *animation, floa
             /////////////// A PARTIR DESTE PONTO, O CÓDIGO É TEMPORÁRIO
             if (animation->currentAnimationState == DYING) {
                 entity->position.x -= animation->isFacingRight*1000*delta;
-            } else if (animation->currentAnimationState == HURT) {
-               if (animation->currentAnimationFrame < 2) {
-                entity->position.x -= animation->isFacingRight*600*delta;
-                }
             }
         }
         if (animation->currentAnimationState == DYING)
@@ -372,7 +417,7 @@ void PlayEntityAnimation(Entity *entity, float delta, Animation *animation, floa
     }
 }
 
-void PhysicsAndGraphicsHandlers (Entity *entity, float delta, enum CHARACTER_STATE currentState) {
+void PhysicsAndGraphicsHandlers (Entity *entity, float delta, enum CHARACTER_STATE currentLowerState, enum CHARACTER_STATE currentUpperState) {
     Animation *upperAnimation = &(entity->upperAnimation);
     Animation *lowerAnimation = &(entity->lowerAnimation);
 
@@ -399,21 +444,21 @@ void PhysicsAndGraphicsHandlers (Entity *entity, float delta, enum CHARACTER_STA
             if (entity->isGrounded) {
                 if (entity->velocity.x != 0) {
                     entity->lowerAnimation.currentAnimationState = WALKING;
-                    if (entity->upperAnimation.currentAnimationState != ATTACKING) 
+                    if (entity->upperAnimation.currentAnimationState != ATTACKING && entity->upperAnimation.currentAnimationState != THROWING)  
                         entity->upperAnimation.currentAnimationState = WALKING;
                 } else {
                     entity->lowerAnimation.currentAnimationState = IDLE;
-                    if (entity->upperAnimation.currentAnimationState != ATTACKING)
+                    if (entity->upperAnimation.currentAnimationState != ATTACKING && entity->upperAnimation.currentAnimationState != THROWING)  
                         entity->upperAnimation.currentAnimationState = IDLE;
                 }
             } else if (!entity->isGrounded) {
                 if (entity->velocity.y < 0) {
                     entity->lowerAnimation.currentAnimationState = JUMPING;
-                    if (entity->upperAnimation.currentAnimationState != ATTACKING)
+                    if (entity->upperAnimation.currentAnimationState != ATTACKING && entity->upperAnimation.currentAnimationState != THROWING)  
                         entity->upperAnimation.currentAnimationState = JUMPING;
                 } else if(entity->velocity.y > 0) {
                     entity->lowerAnimation.currentAnimationState = FALLING;
-                    if (entity->upperAnimation.currentAnimationState != ATTACKING)
+                    if (entity->upperAnimation.currentAnimationState != ATTACKING && entity->upperAnimation.currentAnimationState != THROWING)  
                         entity->upperAnimation.currentAnimationState = FALLING;
                 }
             }
@@ -427,81 +472,83 @@ void PhysicsAndGraphicsHandlers (Entity *entity, float delta, enum CHARACTER_STA
     // Atualização de estado quando o inimigo morre
     if (entity->currentHP <= 0 && !(entity->lowerAnimation.currentAnimationState == DYING)) {
         entity->lowerAnimation.currentAnimationState = DYING;
+        entity->upperAnimation.currentAnimationState = DYING;
     }
 
     int lAnimRow = 0;
     int uAnimRow = 0;
 
-    if (currentState != lowerAnimation->currentAnimationState) {
+    if (currentLowerState != lowerAnimation->currentAnimationState) {
         lowerAnimation->timeSinceLastFrame = 0.0f;
         lowerAnimation->currentAnimationFrame = 0;
+    }
+    if (currentUpperState != upperAnimation->currentAnimationState) {
         upperAnimation->timeSinceLastFrame = 0.0f;
         upperAnimation->currentAnimationFrame = 0;
     }
     switch (lowerAnimation->currentAnimationState)
     {
     case IDLE:
-        lAnimRow = 0;
-        PlayEntityAnimation(entity, delta, lowerAnimation, 6, true, false, -1, false, IDLE);
+        lAnimRow = PLAYER_LEGS_IDLE_ROW;
+        PlayEntityAnimation(entity, delta, lowerAnimation, PLAYER_LEGS_IDLE_NUM_FRAMES, true, false, -1, false, IDLE);
         break;
     case WALKING:
-        lAnimRow = 2;
-        PlayEntityAnimation(entity, delta, lowerAnimation, 6, true, false, -1, false, WALKING);
-        break;
-    case HURT:
-        lAnimRow = -1;
-        //PlayEntityAnimation(entity, delta, animation, 6, false, false, -1, true, IDLE);
+        lAnimRow = PLAYER_LEGS_WALKING_ROW;
+        PlayEntityAnimation(entity, delta, lowerAnimation, PLAYER_LEGS_WALKING_NUM_FRAMES, true, false, -1, false, WALKING);
         break;
     case JUMPING:
-        lAnimRow = 1;
-        PlayEntityAnimation(entity, delta, lowerAnimation, 5, false, false, -1, false, JUMPING);
+        lAnimRow = PLAYER_LEGS_JUMPING_ROW;
+        PlayEntityAnimation(entity, delta, lowerAnimation, PLAYER_LEGS_JUMPING_NUM_FRAMES, false, false, -1, false, JUMPING);
         break;
     case FALLING:
-        lAnimRow = 1;
-        PlayEntityAnimation(entity, delta, lowerAnimation, 5, false, true, 5, false, FALLING);
+        lAnimRow = PLAYER_LEGS_JUMPING_ROW;
+        PlayEntityAnimation(entity, delta, lowerAnimation, PLAYER_LEGS_JUMPING_NUM_FRAMES, false, true, PLAYER_LEGS_JUMPING_NUM_FRAMES, false, FALLING);
         break;
     case DYING:
-        //PlayEntityAnimation(entity, delta, animation, 7, false, false, -1, false, DYING);
+        lAnimRow = PLAYER_BODY_DYING_ROW;
+        PlayEntityAnimation(entity, delta, lowerAnimation, PLAYER_BODY_DYING_NUM_FRAMES, false, false, -1, false, DYING);
         break;
-    case ATTACKING:
-        //PlayEntityAnimation(entity, delta, animation, 6, false, false, -1, true, IDLE);
     default:
         break;
     }
-
+    
+    int numOfFrames = 0;
     switch (upperAnimation->currentAnimationState) {
     case IDLE:
-        uAnimRow = 3;
-        PlayEntityAnimation(entity, delta, upperAnimation, 6, true, false, -1, false, IDLE);
+        uAnimRow = PLAYER_UPPER_IDLE_ROW;
+        PlayEntityAnimation(entity, delta, upperAnimation, PLAYER_UPPER_IDLE_NUM_FRAMES, true, false, -1, false, IDLE);
         break;
     case WALKING:
-        uAnimRow = 8;
-        PlayEntityAnimation(entity, delta, upperAnimation, 8, true, false, -1, false, WALKING);
-        break;
-    case HURT:
-        uAnimRow = 9; //TODO teremos essa animação?
-        //PlayEntityAnimation(entity, delta, animation, 6, false, false, -1, true, IDLE);
+        uAnimRow = PLAYER_UPPER_WALKING_ROW;
+        PlayEntityAnimation(entity, delta, upperAnimation, PLAYER_UPPER_WALKING_NUM_FRAMES, true, false, -1, false, WALKING);
         break;
     case JUMPING:
-        uAnimRow = 4;
-        PlayEntityAnimation(entity, delta, upperAnimation, 5, false, false, -1, false, JUMPING);
+        uAnimRow = PLAYER_UPPER_JUMPING_ROW;
+        PlayEntityAnimation(entity, delta, upperAnimation, PLAYER_UPPER_JUMPING_NUM_FRAMES, false, false, -1, false, JUMPING);
         break;
     case FALLING:
-        uAnimRow = 4;
-        PlayEntityAnimation(entity, delta, upperAnimation, 5, false, true, 5, false, FALLING);
-        break;
-    case DYING:
-        //PlayEntityAnimation(entity, delta, animation, 7, false, false, -1, false, DYING);
+        uAnimRow = PLAYER_UPPER_JUMPING_ROW;
+        PlayEntityAnimation(entity, delta, upperAnimation, PLAYER_UPPER_JUMPING_NUM_FRAMES, false, true, PLAYER_UPPER_JUMPING_NUM_FRAMES, false, FALLING);
         break;
     case ATTACKING:
         if (entity->upPressed) {
-                uAnimRow = 5;
+            uAnimRow = PLAYER_UPPER_SHOOTING_45U_ROW;
+            numOfFrames = PLAYER_UPPER_SHOOTING_45U_NUM_FRAMES;
         } else if (entity->downPressed) {
-                uAnimRow = 6;
+            uAnimRow = PLAYER_UPPER_SHOOTING_45D_ROW;
+            numOfFrames = PLAYER_UPPER_SHOOTING_45D_NUM_FRAMES;
         } else {
-            uAnimRow = 7;
+            uAnimRow = PLAYER_UPPER_SHOOTING_ROW;
+            numOfFrames = PLAYER_UPPER_SHOOTING_NUM_FRAMES;
         }
-        PlayEntityAnimation(entity, delta, upperAnimation, 4, false, false, -1, true, IDLE);
+        PlayEntityAnimation(entity, delta, upperAnimation, numOfFrames, false, false, -1, true, IDLE);
+        break;
+    case DYING:
+        uAnimRow = -1; // A animação é gerida apenas por "lowerAnimation"
+        break;
+    case THROWING:
+        uAnimRow = PLAYER_UPPER_THROWING_ROW;
+        PlayEntityAnimation(entity, delta, upperAnimation, PLAYER_UPPER_THROWING_NUM_FRAMES, false, false, -1, true, IDLE);
         break;
     default:
         break;
@@ -583,18 +630,33 @@ void EntityCollisionHandler(Entity *entity, Ground *ground, EnvProps *envProp, f
         entity->isGrounded = true;
     }
 
-    // Colisão com grounds                                            ///////////////////////////////////////////////////////////////////////
-    for (int i = 0; i < maxNumEnvProps; i++)
-    {
-        EnvProps *curProp = envProp + i;
-        if (curProp->isActive) {
-            Rectangle *eCol = &(entity->collisionBox);
-            Vector2 *eVel = &(entity->velocity);
-            Rectangle futureBox = (Rectangle) {eCol->x + eVel->x * delta, eCol->y + eVel->y * delta, eCol->width, eCol->height};
-            if (curProp->isCollectable) {
-                if (CheckCollisionRecs(curProp->groundRect, futureBox)) {
-                    // TODO dar o benefício
-                    curProp->isActive = false;
+    // Colisão com Props coletáveis                                  ///////////////////////////////////////////////////////////////////////
+    if (entity->type == PLAYER) {
+        for (int i = 0; i < maxNumEnvProps; i++)
+        {
+            EnvProps *curProp = envProp + i;
+            if (curProp->isActive) {
+                Rectangle *eCol = &(entity->collisionBox);
+                Vector2 *eVel = &(entity->velocity);
+                Rectangle futureBox = (Rectangle) {eCol->x + eVel->x * delta, eCol->y + eVel->y * delta, eCol->width, eCol->height};
+                if (curProp->isCollectable) {
+                    if (CheckCollisionRecs(curProp->collisionRect, futureBox)) {
+                        // TODO dar o benefício
+                        switch (curProp->type) {
+                        case AMMO_CRATE:
+                            entity->grenadeAmmo += 10;
+                            entity->grenadeAmmo = fmin(entity->grenadeAmmo, 999);
+                            break;
+                        case HP_CRATE:
+                            entity->currentHP += 50;
+                            entity->currentHP = fmin(entity->currentHP, entity->maxHP);
+                            break;
+                        default:
+                            break;
+                        }
+                        DestroyEnvProp(envProp, ground, i);
+                        curProp->isActive = false;
+                    }
                 }
             }
         }
@@ -603,9 +665,36 @@ void EntityCollisionHandler(Entity *entity, Ground *ground, EnvProps *envProp, f
 }
 
 void HurtEntity(Entity *dstEntity, Bullet srcBullet, float damage) {
-    dstEntity->lowerAnimation.currentAnimationState = HURT;
-    dstEntity->lowerAnimation.timeSinceLastFrame = 0;
-    dstEntity->lowerAnimation.currentAnimationFrame = 0;
     dstEntity->lowerAnimation.isFacingRight = -srcBullet.direction.x;
     dstEntity->currentHP -= damage;
+}
+
+void ExplosionAOE(EnvProps *envPropPool, Enemy *enemyPool, Ground *groundPool, int explosionRadius, float energy, Vector2 centerOfExplosion, enum ENTITY_TYPES srcEntity) {
+    int maxCount = 0;
+    maxCount = fmax(maxNumGrounds, maxNumGrenade);
+    maxCount = fmax(maxCount, maxNumEnvProps);
+    maxCount = fmax(maxCount, maxNumEnemies);
+    maxCount = fmax(maxCount, maxNumBullets);
+    for (int i = 0; i < maxCount; i++) {
+        if (i < maxNumEnvProps) {
+            EnvProps *curEnvProp = envPropPool + i;
+            // Props
+            if (curEnvProp->isActive && curEnvProp->isDestroyable) {
+                if (CheckCollisionCircleRec(centerOfExplosion, explosionRadius, curEnvProp->collisionRect)) {
+                    DestroyEnvProp(envPropPool, groundPool, i);
+                }
+            }
+        }
+
+        if (i < maxNumEnemies) {
+            Enemy *curEnemy = enemyPool + i;
+            // Enemy
+            if (curEnemy->isAlive) {
+                if (CheckCollisionCircleRec(centerOfExplosion, explosionRadius, curEnemy->entity.collisionBox)) {
+                    curEnemy->entity.currentHP = 0;
+                }
+            }
+        }
+
+    }
 }

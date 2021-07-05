@@ -2,24 +2,31 @@
 // Player frames ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 int static PLAYER_GRID[2] = {122, 122};
+// LEGS são as animações exclusivas a parte inferior do player
 int static PLAYER_LEGS_IDLE_ROW = 0;
 int static PLAYER_LEGS_IDLE_NUM_FRAMES = 6;
 int static PLAYER_LEGS_JUMPING_ROW = 1;
-int static PLAYER_LEGS_JUMPING_NUM_FRAMES = 6;
+int static PLAYER_LEGS_JUMPING_NUM_FRAMES = 5; // Não conta com o frame de "falling"
 int static PLAYER_LEGS_WALKING_ROW = 2;
 int static PLAYER_LEGS_WALKING_NUM_FRAMES = 6;
-int static PLAYER_BODY_IDLE_ROW = 3;
-int static PLAYER_BODY_IDLE_NUM_FRAMES = 6;
-int static PLAYER_BODY_JUMPING_ROW = 4;
-int static PLAYER_BODY_JUMPING_NUM_FRAMES = 6;
-int static PLAYER_BODY_SHOOTING_45U_ROW = 5;
-int static PLAYER_BODY_SHOOTING_45U_NUM_FRAMES = 4;
-int static PLAYER_BODY_SHOOTING_45D_ROW = 6;
-int static PLAYER_BODY_SHOOTING_45D_NUM_FRAMES = 4;
-int static PLAYER_BODY_SHOOTING_ROW = 7;
-int static PLAYER_BODY_SHOOTING_NUM_FRAMES = 4;
-int static PLAYER_BODY_WALKING_ROW = 8;
-int static PLAYER_BODY_WALKING_NUM_FRAMES = 8;
+// UPPER são as animações exclusivas a parte superior do player
+int static PLAYER_UPPER_IDLE_ROW = 3;
+int static PLAYER_UPPER_IDLE_NUM_FRAMES = 6;
+int static PLAYER_UPPER_JUMPING_ROW = 4;
+int static PLAYER_UPPER_JUMPING_NUM_FRAMES = 5; // Não conta com o frame de "falling"
+int static PLAYER_UPPER_SHOOTING_45U_ROW = 5;
+int static PLAYER_UPPER_SHOOTING_45U_NUM_FRAMES = 4;
+int static PLAYER_UPPER_SHOOTING_45D_ROW = 6;
+int static PLAYER_UPPER_SHOOTING_45D_NUM_FRAMES = 4;
+int static PLAYER_UPPER_SHOOTING_ROW = 7;
+int static PLAYER_UPPER_SHOOTING_NUM_FRAMES = 4;
+int static PLAYER_UPPER_WALKING_ROW = 8;
+int static PLAYER_UPPER_WALKING_NUM_FRAMES = 8;
+int static PLAYER_UPPER_THROWING_ROW = 9;
+int static PLAYER_UPPER_THROWING_NUM_FRAMES = 5;
+// BODY são as animações do player como um todo (controlados por lowerAnimation)
+int static PLAYER_BODY_DYING_ROW = 10;
+int static PLAYER_BODY_DYING_NUM_FRAMES = 7;
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Objects frames //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -68,7 +75,21 @@ int static FOREGROUND_WALL2_ROW = 3;
 int static FOREGROUND_ROOF_ROW = 4;
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// EnvProps ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Misc frames /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-
+int static MISC_GRID[2] = {122, 122};
+int static MISC_BULLET_ROW = 0;
+int static MISC_BULLET_NUM_FRAMES = 2;
+int static MISC_BULLET_BLAZE_ROW = 1;
+int static MISC_BULLET_BLAZE_NUM_FRAMES = 3;
+int static MISC_SMOKE_EXPLOSION_ROW = 2;
+int static MISC_SMOKE_EXPLOSION_NUM_FRAMES = 7;
+int static MISC_LASER_BEAM_ROW = 3;
+int static MISC_LASER_BEAM_NUM_FRAMES = 2;
+int static MISC_BLOOD_SPILL_ROW = 4;
+int static MISC_BLOOD_SPILL_NUM_FRAMES = 9;
+int static MISC_GRANADE_ROW = 5;
+int static MISC_GRANADE_NUM_FRAMES = 1;
+int static MISC_EXPLOSION_ROW = 6;
+int static MISC_EXPLOSION_NUM_FRAMES = 9;
 
