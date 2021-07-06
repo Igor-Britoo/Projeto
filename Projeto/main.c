@@ -19,7 +19,7 @@ int main(void) {
     Texture2D *enemyTex = (Texture2D *)malloc(numEnemyClasses*sizeof(Texture2D));
     enemyTex[SWORDSMAN] = LoadTexture("resources/Atlas/hero_atlas_div.png");
     enemyTex[ASSASSIN] = LoadTexture("resources/Atlas/assassin_atlas_div.png");
-    enemyTex[GUNNER] = LoadTexture("resources/Atlas/hero_atlas_div.png");
+    enemyTex[GUNNER] = LoadTexture("resources/Atlas/gunner_atlas_div.png");
     enemyTex[SNIPERSHOOTER] = LoadTexture("resources/Atlas/hero_atlas_div.png");
     enemyTex[DRONE] = LoadTexture("resources/Atlas/hero_atlas_div.png");
     enemyTex[TURRET] = LoadTexture("resources/Atlas/hero_atlas_div.png");
@@ -28,7 +28,6 @@ int main(void) {
     // Controle de fluxo do jogo
     float time = 0;
     int difficulty = 0;
-    long points = 0;
 
     // Player Init
     Player player = CreatePlayer(100, (Vector2){122, 200},122, 122);
@@ -45,6 +44,7 @@ int main(void) {
     EnvProps *envPropsPool = (EnvProps *)malloc(maxNumEnvProps*sizeof(EnvProps));
     Enemy *enemyPool = (Enemy *)malloc(maxNumEnemies*sizeof(Enemy));
     Particle *particlePool = (Particle *)malloc(maxNumParticles*sizeof(Particle));
+    MSGSystem *msgPool = (MSGSystem *)malloc(maxNumMSGs*sizeof(MSGSystem));
     Background *nearBackgroundPool = (Background *)malloc(numBackgroundRendered*sizeof(Background));
     Background *middleBackgroundPool = (Background *)malloc(numBackgroundRendered*sizeof(Background));
     Background *farBackgroundPool = (Background *)malloc(numBackgroundRendered*sizeof(Background));
@@ -54,6 +54,7 @@ int main(void) {
     maxCount = fmax(maxCount, maxNumEnvProps);
     maxCount = fmax(maxCount, maxNumEnemies);
     maxCount = fmax(maxCount, maxNumBullets);
+    maxCount = fmax(maxCount, maxNumMSGs);
     maxCount = fmax(maxCount, numBackgroundRendered);
     for (int i = 0; i < maxCount; i++) {
         if (i < maxNumBullets) {
@@ -76,6 +77,10 @@ int main(void) {
             enemyPool[i].isAlive = false;
         }
 
+        if (i < maxNumMSGs) {
+            msgPool[i].isActive = false;
+        }
+
         if (i < maxNumParticles) {
             particlePool[i].isActive = false;
         }
@@ -83,7 +88,8 @@ int main(void) {
     }
 
     // Criar chão
-    CreateGround(groundPool, (Vector2){0,screenHeight-150},screenWidth*7,5, true, true, false, false); // Chão (esse é sempre existente)
+    CreateGround(groundPool, (Vector2){0,screenHeight-60},screenWidth*7,5, true, true, false, true); // Chão (esse é sempre existente)
+    CreateEnemy(enemyPool, ASSASSIN, (Vector2) {650, screenHeight-250}, 135, 135);
     
     // Criar chunks
     for (int i = 0; i < numBackgroundRendered; i++) {
@@ -111,6 +117,10 @@ int main(void) {
             float deltaTime = GetFrameTime();
             time += deltaTime;
             
+            if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
+                CreateMSG(GetMousePosition(), msgPool, 5000);
+            }
+
             // Atualizar player
             UpdatePlayer(&player, enemyPool, bulletsPool, grenadesPool, deltaTime, groundPool, envPropsPool, camMinX);
 
@@ -121,12 +131,12 @@ int main(void) {
             for (int i = 0; i < maxCount; i++) {
                 if (i < maxNumBullets) {
                     if (bulletsPool[i].isActive)
-                        UpdateBullets(&bulletsPool[i], enemyPool, &player, groundPool, envPropsPool, deltaTime);
+                        UpdateBullets(&bulletsPool[i], enemyPool, &player, msgPool, groundPool, envPropsPool, deltaTime);
                 }
 
                 if (i < maxNumGrenade) {
                     if (grenadesPool[i].isActive)
-                        UpdateGrenades(&grenadesPool[i], enemyPool, &player, groundPool, envPropsPool, particlePool, deltaTime);
+                        UpdateGrenades(&grenadesPool[i], enemyPool, &player, msgPool, groundPool, envPropsPool, particlePool, deltaTime);
                 }
 
                 if (i < maxNumGrounds) {
@@ -148,6 +158,11 @@ int main(void) {
                 if (i < maxNumParticles) {
                     if (particlePool[i].isActive) 
                         UpdateParticles(&particlePool[i], deltaTime, camMinX);
+                }
+
+                if (i < maxNumMSGs) {
+                    if (msgPool[i].isActive) 
+                        UpdateMSGs(&msgPool[i], deltaTime);
                 }
 
                 if (i < numBackgroundRendered) {
@@ -223,6 +238,11 @@ int main(void) {
                         DrawParticle(&particlePool[i], miscAtlas); //grenadespool, miscAtlas                        
                 }
 
+                if (i < maxNumMSGs) {
+                    if (msgPool[i].isActive) 
+                        DrawMSG(&msgPool[i]); 
+                }
+
             }
 
             // Draw player
@@ -280,10 +300,10 @@ int main(void) {
         char pointsText[15] = "";
         char charPointsPool[15] = "";
         for (int i = 0; i < 14; i++) {
-            if (points < (i+1)*10)
+            if (player.points < (i+1)*10)
                 strcat(pointsText, "0");
         }
-        sprintf(charPointsPool, "%ld", points);
+        sprintf(charPointsPool, "%ld", player.points);
         strcat(pointsText, charPointsPool);
         DrawText(pointsText, 7, 7, 30, WHITE);
 
@@ -368,6 +388,7 @@ Player CreatePlayer (int maxHP, Vector2 position, int width, int height) {
     newPlayer.entity.isGrounded = false;
     newPlayer.entity.eyesOffset = (Vector2) {55, 40};
     newPlayer.entity.type = PLAYER;
+    newPlayer.points = 0;
 
     newPlayer.entity.width = width;
     newPlayer.entity.height = height;
@@ -456,79 +477,169 @@ void CreateEnemy(Enemy *enemyPool, enum ENEMY_CLASSES class, Vector2 position, i
             newEnemy->entity.upperAnimation.animationFrameWidth = 0;
             newEnemy->entity.upperAnimation.animationFrameHeight = 0;
 
+            newEnemy->entity.GRID[0] = 0;
+            newEnemy->entity.GRID[1] = 0;
+            newEnemy->entity.LEGS_IDLE_ROW = 0;
+            newEnemy->entity.LEGS_IDLE_NUM_FRAMES = 0;
+            newEnemy->entity.LEGS_WALKING_ROW = 0;
+            newEnemy->entity.LEGS_WALKING_NUM_FRAMES = 0;
+            newEnemy->entity.UPPER_IDLE_ROW = 0;
+            newEnemy->entity.UPPER_IDLE_NUM_FRAMES = 0;
+            newEnemy->entity.UPPER_WALKING_ROW = 0;
+            newEnemy->entity.UPPER_WALKING_NUM_FRAMES = 0;
+            newEnemy->entity.UPPER_ATTACKING_ROW = 0;
+            newEnemy->entity.UPPER_ATTACKING_NUM_FRAMES = 0;
+            newEnemy->entity.BODY_DYING_ROW = 0;
+            newEnemy->entity.BODY_DYING_NUM_FRAMES = 0;
+
             //Valores para range de ataque e de visão selecionados de forma arbitraria, atualizar posteriormente
             newEnemy->entity.maxHP = 500;
             newEnemy->entity.currentHP = newEnemy->entity.maxHP;
             switch (class){
                 case SWORDSMAN:
-                    newEnemy->entity.lowerAnimation.animationFrameWidth = PLAYER_GRID[0];//BOSS_GRID[0];
-                    newEnemy->entity.lowerAnimation.animationFrameHeight = PLAYER_GRID[1];//BOSS_GRID[1];
-                    newEnemy->entity.upperAnimation.animationFrameWidth = PLAYER_GRID[0];//BOSS_GRID[0];
-                    newEnemy->entity.upperAnimation.animationFrameHeight = PLAYER_GRID[1];//BOSS_GRID[1];
                     newEnemy->viewDistance = 600;
                     newEnemy->attackRange = 0;
                     newEnemy->attackSpeed = 0.8f; // Ataques por segundo
+                    newEnemy->entity.GRID[0] = PLAYER_GRID[0];
+                    newEnemy->entity.GRID[1] = PLAYER_GRID[1];
+                    newEnemy->entity.LEGS_IDLE_ROW = PLAYER_LEGS_IDLE_ROW;
+                    newEnemy->entity.LEGS_IDLE_NUM_FRAMES = PLAYER_LEGS_IDLE_NUM_FRAMES;
+                    newEnemy->entity.LEGS_WALKING_ROW = PLAYER_LEGS_WALKING_ROW;
+                    newEnemy->entity.LEGS_WALKING_NUM_FRAMES = PLAYER_LEGS_WALKING_ROW;
+                    newEnemy->entity.UPPER_IDLE_ROW = PLAYER_UPPER_IDLE_ROW;
+                    newEnemy->entity.UPPER_IDLE_NUM_FRAMES = PLAYER_UPPER_IDLE_NUM_FRAMES;
+                    newEnemy->entity.UPPER_WALKING_ROW = PLAYER_UPPER_WALKING_ROW;
+                    newEnemy->entity.UPPER_WALKING_NUM_FRAMES = PLAYER_UPPER_WALKING_NUM_FRAMES;
+                    newEnemy->entity.UPPER_ATTACKING_ROW = PLAYER_UPPER_ATTACKING_ROW;
+                    newEnemy->entity.UPPER_ATTACKING_NUM_FRAMES = PLAYER_UPPER_ATTACKING_NUM_FRAMES;
+                    newEnemy->entity.BODY_DYING_ROW = PLAYER_BODY_DYING_ROW;
+                    newEnemy->entity.BODY_DYING_NUM_FRAMES = PLAYER_BODY_DYING_NUM_FRAMES;
                     break;
                 case ASSASSIN:
-                    newEnemy->entity.lowerAnimation.animationFrameWidth = ASSASSIN_GRID[0];//BOSS_GRID[0];
-                    newEnemy->entity.lowerAnimation.animationFrameHeight = ASSASSIN_GRID[1];//BOSS_GRID[1];
-                    newEnemy->entity.upperAnimation.animationFrameWidth = ASSASSIN_GRID[0];//BOSS_GRID[0];
-                    newEnemy->entity.upperAnimation.animationFrameHeight = ASSASSIN_GRID[1];//BOSS_GRID[1];
+                    
                     newEnemy->viewDistance = 600;
                     newEnemy->attackRange = 30;
                     newEnemy->attackSpeed = 0.8f; // Ataques por segundo
+                    newEnemy->entity.GRID[0] = ASSASSIN_GRID[0];
+                    newEnemy->entity.GRID[1] = ASSASSIN_GRID[1];
+                    newEnemy->entity.LEGS_IDLE_ROW = ASSASSIN_LEGS_IDLE_ROW;
+                    newEnemy->entity.LEGS_IDLE_NUM_FRAMES = ASSASSIN_LEGS_IDLE_NUM_FRAMES;
+                    newEnemy->entity.LEGS_WALKING_ROW = ASSASSIN_LEGS_WALKING_ROW;
+                    newEnemy->entity.LEGS_WALKING_NUM_FRAMES = ASSASSIN_LEGS_WALKING_NUM_FRAMES;
+                    newEnemy->entity.UPPER_IDLE_ROW = ASSASSIN_UPPER_IDLE_ROW;
+                    newEnemy->entity.UPPER_IDLE_NUM_FRAMES = ASSASSIN_UPPER_IDLE_NUM_FRAMES;
+                    newEnemy->entity.UPPER_WALKING_ROW = ASSASSIN_UPPER_WALKING_ROW;
+                    newEnemy->entity.UPPER_WALKING_NUM_FRAMES = ASSASSIN_UPPER_WALKING_NUM_FRAMES;
+                    newEnemy->entity.UPPER_ATTACKING_ROW = ASSASSIN_UPPER_ATTACKING_ROW;
+                    newEnemy->entity.UPPER_ATTACKING_NUM_FRAMES = ASSASSIN_UPPER_ATTACKING_NUM_FRAMES;
+                    newEnemy->entity.BODY_DYING_ROW = ASSASSIN_BODY_DYING_ROW;
+                    newEnemy->entity.BODY_DYING_NUM_FRAMES = ASSASSIN_BODY_DYING_NUM_FRAMES;
                     break;
                 case GUNNER:
-                    newEnemy->entity.lowerAnimation.animationFrameWidth = PLAYER_GRID[0];//BOSS_GRID[0];
-                    newEnemy->entity.lowerAnimation.animationFrameHeight = PLAYER_GRID[1];//BOSS_GRID[1];
-                    newEnemy->entity.upperAnimation.animationFrameWidth = PLAYER_GRID[0];//BOSS_GRID[0];
-                    newEnemy->entity.upperAnimation.animationFrameHeight = PLAYER_GRID[1];//BOSS_GRID[1];
                     newEnemy->viewDistance = 600;
                     newEnemy->attackRange = 200;
                     newEnemy->attackSpeed = 0.8f; // Ataques por segundo
+                    newEnemy->entity.GRID[0] = GUNNER_GRID[0];
+                    newEnemy->entity.GRID[1] = GUNNER_GRID[1];
+                    newEnemy->entity.LEGS_IDLE_ROW = GUNNER_LEGS_IDLE_ROW;
+                    newEnemy->entity.LEGS_IDLE_NUM_FRAMES = GUNNER_LEGS_IDLE_NUM_FRAMES;
+                    newEnemy->entity.LEGS_WALKING_ROW = GUNNER_LEGS_WALKING_ROW;
+                    newEnemy->entity.LEGS_WALKING_NUM_FRAMES = GUNNER_LEGS_WALKING_NUM_FRAMES;
+                    newEnemy->entity.UPPER_IDLE_ROW = GUNNER_UPPER_IDLE_ROW;
+                    newEnemy->entity.UPPER_IDLE_NUM_FRAMES = GUNNER_UPPER_IDLE_NUM_FRAMES;
+                    newEnemy->entity.UPPER_WALKING_ROW = GUNNER_UPPER_WALKING_ROW;
+                    newEnemy->entity.UPPER_WALKING_NUM_FRAMES = GUNNER_UPPER_WALKING_NUM_FRAMES;
+                    newEnemy->entity.UPPER_ATTACKING_ROW = GUNNER_UPPER_ATTACKING_ROW;
+                    newEnemy->entity.UPPER_ATTACKING_NUM_FRAMES = GUNNER_UPPER_ATTACKING_NUM_FRAMES;
+                    newEnemy->entity.BODY_DYING_ROW = GUNNER_BODY_DYING_ROW;
+                    newEnemy->entity.BODY_DYING_NUM_FRAMES = GUNNER_BODY_DYING_NUM_FRAMES;
                     break;
                 case SNIPERSHOOTER:
-                    newEnemy->entity.lowerAnimation.animationFrameWidth = PLAYER_GRID[0];//BOSS_GRID[0];
-                    newEnemy->entity.lowerAnimation.animationFrameHeight = PLAYER_GRID[1];//BOSS_GRID[1];
-                    newEnemy->entity.upperAnimation.animationFrameWidth = PLAYER_GRID[0];//BOSS_GRID[0];
-                    newEnemy->entity.upperAnimation.animationFrameHeight = PLAYER_GRID[1];//BOSS_GRID[1];
                     newEnemy->viewDistance = 1000;
                     newEnemy->attackRange = 1000;
                     newEnemy->attackSpeed = 0.8f; // Ataques por segundo
+                    newEnemy->entity.GRID[0] = PLAYER_GRID[0];
+                    newEnemy->entity.GRID[1] = PLAYER_GRID[1];
+                    newEnemy->entity.LEGS_IDLE_ROW = PLAYER_LEGS_IDLE_ROW;
+                    newEnemy->entity.LEGS_IDLE_NUM_FRAMES = PLAYER_LEGS_IDLE_NUM_FRAMES;
+                    newEnemy->entity.LEGS_WALKING_ROW = PLAYER_LEGS_WALKING_ROW;
+                    newEnemy->entity.LEGS_WALKING_NUM_FRAMES = PLAYER_LEGS_WALKING_ROW;
+                    newEnemy->entity.UPPER_IDLE_ROW = PLAYER_UPPER_IDLE_ROW;
+                    newEnemy->entity.UPPER_IDLE_NUM_FRAMES = PLAYER_UPPER_IDLE_NUM_FRAMES;
+                    newEnemy->entity.UPPER_WALKING_ROW = PLAYER_UPPER_WALKING_ROW;
+                    newEnemy->entity.UPPER_WALKING_NUM_FRAMES = PLAYER_UPPER_WALKING_NUM_FRAMES;
+                    newEnemy->entity.UPPER_ATTACKING_ROW = PLAYER_UPPER_ATTACKING_ROW;
+                    newEnemy->entity.UPPER_ATTACKING_NUM_FRAMES = PLAYER_UPPER_ATTACKING_NUM_FRAMES;
+                    newEnemy->entity.BODY_DYING_ROW = PLAYER_BODY_DYING_ROW;
+                    newEnemy->entity.BODY_DYING_NUM_FRAMES = PLAYER_BODY_DYING_NUM_FRAMES;
                     break;
                 case DRONE:
-                    newEnemy->entity.lowerAnimation.animationFrameWidth = PLAYER_GRID[0];//BOSS_GRID[0];
-                    newEnemy->entity.lowerAnimation.animationFrameHeight = PLAYER_GRID[1];//BOSS_GRID[1];
-                    newEnemy->entity.upperAnimation.animationFrameWidth = PLAYER_GRID[0];//BOSS_GRID[0];
-                    newEnemy->entity.upperAnimation.animationFrameHeight = PLAYER_GRID[1];//BOSS_GRID[1];
                     newEnemy->viewDistance = 600;
                     newEnemy->attackRange = 200;
                     newEnemy->attackSpeed = 0.8f; // Ataques por segundo
+                    newEnemy->entity.GRID[0] = PLAYER_GRID[0];
+                    newEnemy->entity.GRID[1] = PLAYER_GRID[1];
+                    newEnemy->entity.LEGS_IDLE_ROW = PLAYER_LEGS_IDLE_ROW;
+                    newEnemy->entity.LEGS_IDLE_NUM_FRAMES = PLAYER_LEGS_IDLE_NUM_FRAMES;
+                    newEnemy->entity.LEGS_WALKING_ROW = PLAYER_LEGS_WALKING_ROW;
+                    newEnemy->entity.LEGS_WALKING_NUM_FRAMES = PLAYER_LEGS_WALKING_ROW;
+                    newEnemy->entity.UPPER_IDLE_ROW = PLAYER_UPPER_IDLE_ROW;
+                    newEnemy->entity.UPPER_IDLE_NUM_FRAMES = PLAYER_UPPER_IDLE_NUM_FRAMES;
+                    newEnemy->entity.UPPER_WALKING_ROW = PLAYER_UPPER_WALKING_ROW;
+                    newEnemy->entity.UPPER_WALKING_NUM_FRAMES = PLAYER_UPPER_WALKING_NUM_FRAMES;
+                    newEnemy->entity.UPPER_ATTACKING_ROW = PLAYER_UPPER_ATTACKING_ROW;
+                    newEnemy->entity.UPPER_ATTACKING_NUM_FRAMES = PLAYER_UPPER_ATTACKING_NUM_FRAMES;
+                    newEnemy->entity.BODY_DYING_ROW = PLAYER_BODY_DYING_ROW;
+                    newEnemy->entity.BODY_DYING_NUM_FRAMES = PLAYER_BODY_DYING_NUM_FRAMES;
                     break;
                 case TURRET:
-                    newEnemy->entity.lowerAnimation.animationFrameWidth = PLAYER_GRID[0];//BOSS_GRID[0];
-                    newEnemy->entity.lowerAnimation.animationFrameHeight = PLAYER_GRID[1];//BOSS_GRID[1];
-                    newEnemy->entity.upperAnimation.animationFrameWidth = PLAYER_GRID[0];//BOSS_GRID[0];
-                    newEnemy->entity.upperAnimation.animationFrameHeight = PLAYER_GRID[1];//BOSS_GRID[1];
                     newEnemy->viewDistance = 600;
                     newEnemy->attackRange = 200;
                     newEnemy->attackSpeed = 0.8f; // Ataques por segundo
+                    newEnemy->entity.GRID[0] = PLAYER_GRID[0];
+                    newEnemy->entity.GRID[1] = PLAYER_GRID[1];
+                    newEnemy->entity.LEGS_IDLE_ROW = PLAYER_LEGS_IDLE_ROW;
+                    newEnemy->entity.LEGS_IDLE_NUM_FRAMES = PLAYER_LEGS_IDLE_NUM_FRAMES;
+                    newEnemy->entity.LEGS_WALKING_ROW = PLAYER_LEGS_WALKING_ROW;
+                    newEnemy->entity.LEGS_WALKING_NUM_FRAMES = PLAYER_LEGS_WALKING_ROW;
+                    newEnemy->entity.UPPER_IDLE_ROW = PLAYER_UPPER_IDLE_ROW;
+                    newEnemy->entity.UPPER_IDLE_NUM_FRAMES = PLAYER_UPPER_IDLE_NUM_FRAMES;
+                    newEnemy->entity.UPPER_WALKING_ROW = PLAYER_UPPER_WALKING_ROW;
+                    newEnemy->entity.UPPER_WALKING_NUM_FRAMES = PLAYER_UPPER_WALKING_NUM_FRAMES;
+                    newEnemy->entity.UPPER_ATTACKING_ROW = PLAYER_UPPER_ATTACKING_ROW;
+                    newEnemy->entity.UPPER_ATTACKING_NUM_FRAMES = PLAYER_UPPER_ATTACKING_NUM_FRAMES;
+                    newEnemy->entity.BODY_DYING_ROW = PLAYER_BODY_DYING_ROW;
+                    newEnemy->entity.BODY_DYING_NUM_FRAMES = PLAYER_BODY_DYING_NUM_FRAMES;
                     break;
                 case BOSS:
-                    newEnemy->entity.lowerAnimation.animationFrameWidth = PLAYER_GRID[0];//BOSS_GRID[0];
-                    newEnemy->entity.lowerAnimation.animationFrameHeight = PLAYER_GRID[1];//BOSS_GRID[1];
-                    newEnemy->entity.upperAnimation.animationFrameWidth = PLAYER_GRID[0];//BOSS_GRID[0];
-                    newEnemy->entity.upperAnimation.animationFrameHeight = PLAYER_GRID[1];//BOSS_GRID[1];
                     newEnemy->viewDistance = 600;
                     newEnemy->attackRange = 200;
                     newEnemy->attackSpeed = 0.8f; // Ataques por segundo
+                    newEnemy->entity.GRID[0] = PLAYER_GRID[0];
+                    newEnemy->entity.GRID[1] = PLAYER_GRID[1];
+                    newEnemy->entity.LEGS_IDLE_ROW = PLAYER_LEGS_IDLE_ROW;
+                    newEnemy->entity.LEGS_IDLE_NUM_FRAMES = PLAYER_LEGS_IDLE_NUM_FRAMES;
+                    newEnemy->entity.LEGS_WALKING_ROW = PLAYER_LEGS_WALKING_ROW;
+                    newEnemy->entity.LEGS_WALKING_NUM_FRAMES = PLAYER_LEGS_WALKING_ROW;
+                    newEnemy->entity.UPPER_IDLE_ROW = PLAYER_UPPER_IDLE_ROW;
+                    newEnemy->entity.UPPER_IDLE_NUM_FRAMES = PLAYER_UPPER_IDLE_NUM_FRAMES;
+                    newEnemy->entity.UPPER_WALKING_ROW = PLAYER_UPPER_WALKING_ROW;
+                    newEnemy->entity.UPPER_WALKING_NUM_FRAMES = PLAYER_UPPER_WALKING_NUM_FRAMES;
+                    newEnemy->entity.UPPER_ATTACKING_ROW = PLAYER_UPPER_ATTACKING_ROW;
+                    newEnemy->entity.UPPER_ATTACKING_NUM_FRAMES = PLAYER_UPPER_ATTACKING_NUM_FRAMES;
+                    newEnemy->entity.BODY_DYING_ROW = PLAYER_BODY_DYING_ROW;
+                    newEnemy->entity.BODY_DYING_NUM_FRAMES = PLAYER_BODY_DYING_NUM_FRAMES;
                     break;
                 default:
                     break;
             }
         
+            newEnemy->entity.lowerAnimation.animationFrameWidth = newEnemy->entity.GRID[0];
+            newEnemy->entity.lowerAnimation.animationFrameHeight = newEnemy->entity.GRID[1];
             newEnemy->entity.lowerAnimation.currentAnimationFrameRect.width = newEnemy->entity.lowerAnimation.animationFrameWidth;
             newEnemy->entity.lowerAnimation.currentAnimationFrameRect.height = newEnemy->entity.lowerAnimation.animationFrameHeight;
+            newEnemy->entity.upperAnimation.animationFrameWidth = newEnemy->entity.GRID[0];
+            newEnemy->entity.upperAnimation.animationFrameHeight = newEnemy->entity.GRID[1];
             newEnemy->entity.upperAnimation.currentAnimationFrameRect.width = newEnemy->entity.upperAnimation.animationFrameWidth;
             newEnemy->entity.upperAnimation.currentAnimationFrameRect.height = newEnemy->entity.upperAnimation.animationFrameHeight;
 
@@ -693,6 +804,24 @@ void CreateParticle(Vector2 srcPosition, Vector2 velocity, Particle *particlePoo
 
             curParticle->drawableRect = (Rectangle) {curParticle->position.x, curParticle->position.y, abs(curParticle->frameRect.width), abs(curParticle->frameRect.height)};
 
+            return;
+        }
+    }
+}
+
+void CreateMSG(Vector2 srcPosition, MSGSystem *msgPool, int value) {
+    // Procurar lugar vago na pool
+    for (int i = 0; i < maxNumMSGs; i++) {
+        MSGSystem *curMsg = msgPool + i;
+        if (!curMsg->isActive) {
+            curMsg->id = i;
+            curMsg->position = srcPosition;
+            curMsg->position.y -= 60;
+            curMsg->isActive = true;
+            curMsg->lifeTime = 0;
+            curMsg->msg = value;
+            curMsg->color = RED;
+            curMsg->colorId = 0;
             return;
         }
     }
@@ -971,7 +1100,7 @@ void UpdateEnemy(Enemy *enemy, Player *player, Bullet *bulletPool, float delta, 
     eEnt->lowerAnimation.timeSinceLastFrame += delta;
     enemy->timeSinceLastBehaviorChange += delta;
     enemy->timeSinceLastAttack += delta;
-
+    char temp[30] = "";
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     // Handler de comportamento do enemy                              ///////////////////////////////////////////////////////////////////////
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -996,7 +1125,7 @@ void UpdateEnemy(Enemy *enemy, Player *player, Bullet *bulletPool, float delta, 
         eEnt->collisionBox = (Rectangle) {eEnt->position.x  - eEnt->width + (eEnt->lowerAnimation.isFacingRight == -1 ? 0.43f : 0.23f) * eEnt->width, eEnt->position.y, eEnt->width, eEnt->height/2};
 }
      
-void UpdateBullets(Bullet *bullet, Enemy *enemy, Player *player, Ground *ground, EnvProps *envProp, float delta) {
+void UpdateBullets(Bullet *bullet, Enemy *enemy, Player *player, MSGSystem *msgSystem, Ground *ground, EnvProps *envProp, float delta) {
     bullet->lifeTime += delta;
     bullet->animation.timeSinceLastFrame += delta;
     // Checar colisão
@@ -1035,6 +1164,9 @@ void UpdateBullets(Bullet *bullet, Enemy *enemy, Player *player, Ground *ground,
                     if (CheckCollisionRecs(currentEnemy->entity.collisionBox, bullet->collisionBox) || CheckCollisionCircleRec(currentEnemy->entity.collisionHead.center, currentEnemy->entity.collisionHead.radius, bullet->collisionBox)) {
                         bullet->isActive = false;
                         HurtEntity(&(currentEnemy->entity), *bullet, 40); // TODO damage
+                        if (currentEnemy->entity.currentHP <= 0) {
+                            KillEnemy(player, currentEnemy, msgSystem);
+                        }
                     }
                 }
             }
@@ -1108,7 +1240,7 @@ void UpdateBullets(Bullet *bullet, Enemy *enemy, Player *player, Ground *ground,
 
 }
 
-void UpdateGrenades(Grenade *grenade, Enemy *enemy, Player *player, Ground *ground, EnvProps *envProp, Particle *particlePool, float delta) {
+void UpdateGrenades(Grenade *grenade, Enemy *enemy, Player *player, MSGSystem *msgSystem, Ground *ground, EnvProps *envProp, Particle *particlePool, float delta) {
     grenade->lifeTime += delta;
     grenade->animation.timeSinceLastFrame += delta;
     grenade->angle += 5;
@@ -1142,7 +1274,7 @@ void UpdateGrenades(Grenade *grenade, Enemy *enemy, Player *player, Ground *grou
                         grenade->isActive = false;
                         Vector2 particlePosition = grenade->position;
                         particlePosition.y -= grenade->drawableRect.height/2;
-                        ExplosionAOE(envProp, enemy, ground, 100, 100, grenade->position, PLAYER);
+                        ExplosionAOE(player, msgSystem, envProp, enemy, ground, 100, 100, grenade->position, PLAYER);
                         CreateParticle(grenade->position, (Vector2) {0, 0}, particlePool, SMOKE, 4, 0, (Vector2) {1, 1}, false, 1);
                         CreateParticle(grenade->position, (Vector2) {0, 0}, particlePool, EXPLOSION, 4, 0, (Vector2) {1, 1}, false, 1);
                     }
@@ -1167,7 +1299,7 @@ void UpdateGrenades(Grenade *grenade, Enemy *enemy, Player *player, Ground *grou
         grenade->isActive = false;
         Vector2 particlePosition = grenade->position;
         particlePosition.y -= grenade->drawableRect.height/2;
-        ExplosionAOE(envProp, enemy, ground, 100, 100, grenade->position, PLAYER);
+        ExplosionAOE(player, msgSystem, envProp, enemy, ground, 100, 100, grenade->position, PLAYER);
         CreateParticle(particlePosition, (Vector2) {0, 0}, particlePool, SMOKE, 4, 0, (Vector2) {1, 1}, false, 1);
         CreateParticle(grenade->position, (Vector2) {0, 0}, particlePool, EXPLOSION, 4, 0, (Vector2) {1, 1}, false, 1);
 
@@ -1274,6 +1406,37 @@ void UpdateParticles(Particle *curParticle, float delta, float minX) {
     }
 }
 
+void UpdateMSGs(MSGSystem *curMsg, float delta) {
+    curMsg->lifeTime += delta;
+    curMsg->position.y -= delta*50;
+
+    int time = (int)(curMsg->lifeTime*10);
+        curMsg->colorId = time % 4;
+
+    if (curMsg->lifeTime > msgTime)  {
+        curMsg->isActive = false;
+    }
+
+    switch (curMsg->colorId)
+    {
+    case 0:
+        curMsg->color = RED;
+        break;
+    case 1:
+        curMsg->color = GREEN;
+        break;
+    case 2:
+        curMsg->color = YELLOW;
+        break;
+    case 3:
+        curMsg->color = BLUE;
+        curMsg->colorId = 0;
+        break;
+    }
+
+
+}
+
 void UpdateBackground(Player *player, Background *backgroundPool, int i, Texture2D srcAtlas, Enemy *enemyPool, EnvProps *envPropsPool, Ground *groundPool, float delta, int *numBackground, float minX, float *maxX) {
     Background *bgP = backgroundPool + i;
     bgP->position.x = (bgP->originalX - minX*bgP->relativePosition);
@@ -1345,6 +1508,10 @@ void DrawParticle(Particle *particle, Texture2D texture) {
     DrawTexturePro(texture, particle->frameRect, particle->drawableRect, origin, particle->angle, WHITE);
 }
 
+void DrawMSG(MSGSystem *msg) {
+    DrawText(TextFormat("%04i", msg->msg), msg->position.x, msg->position.y, 15, msg->color);
+}
+
 void DrawPlayer(Player *player, Texture2D texture, bool drawCollisionBox) {
     // Draw das caixas de colisão
     if (drawCollisionBox) {
@@ -1367,7 +1534,10 @@ RenderTexture2D PaintCanvas(Texture2D atlas, enum BACKGROUND_TYPES bgLayer, Grou
             GenerateMidground(canvas, atlas, COMPLEX);
         break;
         case FOREGROUND:
-            GenerateForeground(canvas, groundPool, atlas, RESIDENTIAL, relativeXPos);
+            if (GetRandomValue(1,10) < 7)
+                GenerateForeground(canvas, groundPool, atlas, URBAN_FOREST, relativeXPos);
+            else
+                GenerateForeground(canvas, groundPool, atlas, RESIDENTIAL, relativeXPos);
         break;
     }
 
@@ -1415,9 +1585,9 @@ void GenerateMidground(RenderTexture2D canvas, Texture atlas, enum MIDDLEGROUND_
         offset = 30;
         buildingCol = MIDGROUND_SKYSCRAPER_COL;
         for (int j = 0; j < 4; j++) { //4 Unidades por chunk
-            int numFloor = GetRandomValue(10,15);
-            int heightScale = GetRandomValue(-3,3);
-            int widthScale = GetRandomValue(-10,-5);
+            int numFloor = GetRandomValue(15,20);
+            int heightScale = 2*GetRandomValue(-3,3);
+            int widthScale = 2*GetRandomValue(-10,-5);
             int doubled = GetRandomValue(1,5);
             for (int i = 0; i < numFloor; i++) {
                 buildingRow = GetRandomValue(0,MIDGROUND_SKYSCRAPER_NUM_TYPES-1); // 6 tipos
@@ -1440,8 +1610,8 @@ void GenerateMidground(RenderTexture2D canvas, Texture atlas, enum MIDDLEGROUND_
  }
 
 void GenerateForeground(RenderTexture2D canvas, Ground *groundPool, Texture atlas, enum FOREGROUND_STYLE fgStyle, int relativeXPos) {
-    int frameWidth;
-    int frameHeight;
+    int frameWidth = FOREGROUND_GRID[0];
+    int frameHeight = FOREGROUND_GRID[0];
     int overhang;
     int buildingRow;
     int numFloor;
@@ -1449,58 +1619,151 @@ void GenerateForeground(RenderTexture2D canvas, Ground *groundPool, Texture atla
     bool hasDoor;
     int isFlipped;
     int style;
+    int buildType;
+
+    int willDraw;
+    int numOfRows;
+    int treeId;
     BeginTextureMode(canvas);
     switch (fgStyle) {
     case RESIDENTIAL:
-        frameWidth = FOREGROUND_GRID[0];
-        frameHeight = FOREGROUND_GRID[0];
-        overhang = 0;
-        buildingRow = 0;
-        numFloor = GetRandomValue(3,4);
-        tilesWidth = GetRandomValue(3,5);
-        hasDoor = false;
-        isFlipped = 1;
-        style = GetRandomValue(0,FOREGROUND_NUM_TYPES-1); // 2 estilos
-        for (int i = 0; i < numFloor; i++) {
-            for (int j = 0; j < tilesWidth; j++) {
-                overhang = 0;
-                if (j == 0) { //borda esquerda
-                    buildingRow = FOREGROUND_EDGE_ROW;
+        DrawRectangle(0, screenHeight-200, screenWidth, 200, DARKGRAY);
+        numOfRows = GetRandomValue(1,1);
+        for (int k = 0; k < numOfRows; k++) {
+            int yOffset = k * (30);
+            for (int l = 0; l < (int)(screenWidth/frameWidth)-2; l++) {
+                int xOffset = 10 + l*frameWidth;
+                buildType = GetRandomValue(1,100);
+                if (buildType < 90 ) {// Gerar prédio
+                    overhang = 0;
+                    buildingRow = 0;
+                    numFloor = GetRandomValue(3,4);
+                    tilesWidth = GetRandomValue(3,4);
+                    l += tilesWidth;
+                    hasDoor = false;
                     isFlipped = 1;
-                } else if (j == tilesWidth - 1) { // borda direita
-                    buildingRow = FOREGROUND_EDGE_ROW;
-                    isFlipped = -1;
-                } else {
-                    if (i == 0) { // andar térreo
-                        if (j == tilesWidth - 2 && !hasDoor) { // Se não teve porta até a penúltima casa, forçar porta
-                            buildingRow = FOREGROUND_DOOR_ROW;
-                        } else {
-                            if (!hasDoor) {
-                                buildingRow = (GetRandomValue(0,3) == 0 ? 1 : 2); // TODO possibilidades
-                                if (buildingRow == FOREGROUND_DOOR_ROW) {
-                                    hasDoor = true;
+                    style = GetRandomValue(0,FOREGROUND_NUM_TYPES-1); // 2 estilos
+                    for (int i = 0; i < numFloor; i++) {
+                        for (int j = 0; j < tilesWidth; j++) {
+                            overhang = 0;
+                            if (j == 0) { //borda esquerda
+                                buildingRow = FOREGROUND_EDGE_ROW;
+                                isFlipped = 1;
+                            } else if (j == tilesWidth - 1) { // borda direita
+                                buildingRow = FOREGROUND_EDGE_ROW;
+                                isFlipped = -1;
+                            } else {
+                                if (i == 0) { // andar térreo
+                                    if (j == tilesWidth - 2 && !hasDoor) { // Se não teve porta até a penúltima casa, forçar porta
+                                        buildingRow = FOREGROUND_DOOR_ROW;
+                                    } else {
+                                        if (!hasDoor) {
+                                            buildingRow = (GetRandomValue(0,3) == 0 ? 1 : 2); // TODO possibilidades
+                                            if (buildingRow == FOREGROUND_DOOR_ROW) {
+                                                hasDoor = true;
+                                            }
+                                        } else { // Se já tem porta, parede
+                                            buildingRow = FOREGROUND_WALL1_ROW;
+                                        }
+                                    }
+                                } else { // Casas normais
+                                    buildingRow = (GetRandomValue(0,3) == 0 ? 3 : 2); // TODO possibilidades
                                 }
-                            } else { // Se já tem porta, parede
-                                buildingRow = FOREGROUND_WALL1_ROW;
                             }
+                            if (i == numFloor - 1) { // teto
+                                overhang = 7;
+                                buildingRow = FOREGROUND_ROOF_ROW;
+                                CreateGround(groundPool,(Vector2) {xOffset+j*frameWidth-overhang + relativeXPos*canvas.texture.width, (canvas.texture.height - 150) - (i)*(frameHeight)-50 - (40 - yOffset)}, frameWidth+2*overhang, 20, true, false, false, true);
+                            }
+                            DrawTexturePro(atlas, (Rectangle){style*frameWidth, buildingRow*frameHeight, isFlipped*frameWidth, frameHeight},
+                                (Rectangle){xOffset+j*frameWidth-overhang, (canvas.texture.height - 150) - (i+1)*(frameHeight) - (40 - yOffset), frameWidth+2*overhang, frameHeight}, // deslocado 150 pixels acima do fundo da tela
+                                (Vector2) {0, 0}, 0, WHITE);
                         }
-                    } else { // Casas normais
-                        buildingRow = (GetRandomValue(0,3) == 0 ? 3 : 2); // TODO possibilidades
+                    }
+                } else { // Gerar chip implant
+                    if (GetRandomValue(1,2) == 1) {
+                        int posX = xOffset;
+                        l += FOREGROUND_CHIP_IMPLANT_RECT[2];
+                        DrawTexturePro(atlas, (Rectangle){FOREGROUND_CHIP_IMPLANT_RECT[0]*frameWidth, FOREGROUND_CHIP_IMPLANT_RECT[1]*frameHeight, FOREGROUND_CHIP_IMPLANT_RECT[2]*frameWidth, FOREGROUND_CHIP_IMPLANT_RECT[3]*frameHeight},
+                            (Rectangle){posX, (canvas.texture.height - 145) - FOREGROUND_CHIP_IMPLANT_RECT[3]*frameHeight/2 - (40 - yOffset), FOREGROUND_CHIP_IMPLANT_RECT[2]*frameWidth/2, FOREGROUND_CHIP_IMPLANT_RECT[3]*frameHeight/2}, // deslocado 150 pixels acima do fundo da tela
+                            (Vector2) {0, 0}, 0, WHITE);
+                        CreateGround(groundPool,(Vector2) {posX+35 + relativeXPos*screenWidth, (canvas.texture.height - 145) - FOREGROUND_CHIP_IMPLANT_RECT[3]*frameHeight/2 - (40 - yOffset)}, FOREGROUND_CHIP_IMPLANT_RECT[2]*frameWidth/2 - 70, 20, true, false, false, true);
+                    } else {
+                        int posX = xOffset;
+                        l += FOREGROUND_SUSHI_BAR_RECT[2];
+                        DrawTexturePro(atlas, (Rectangle){FOREGROUND_SUSHI_BAR_RECT[0]*frameWidth, FOREGROUND_SUSHI_BAR_RECT[1]*frameHeight, FOREGROUND_SUSHI_BAR_RECT[2]*frameWidth, FOREGROUND_SUSHI_BAR_RECT[3]*frameHeight},
+                            (Rectangle){posX, (canvas.texture.height - 145) - FOREGROUND_SUSHI_BAR_RECT[3]*frameHeight/2 - (40 - yOffset), FOREGROUND_SUSHI_BAR_RECT[2]*frameWidth/2, FOREGROUND_SUSHI_BAR_RECT[3]*frameHeight/2}, // deslocado 150 pixels acima do fundo da tela
+                            (Vector2) {0, 0}, 0, WHITE);
+                        CreateGround(groundPool,(Vector2) {posX+15 + relativeXPos*screenWidth, (canvas.texture.height - 145) - FOREGROUND_SUSHI_BAR_RECT[3]*frameHeight/2 + 2*0.14f*frameHeight - (40 - yOffset)}, FOREGROUND_SUSHI_BAR_RECT[2]*frameWidth/2 - 30, 20, true, false, false, true);
                     }
                 }
-                if (i == numFloor - 1) { // teto
-                    overhang = 7;
-                    buildingRow = FOREGROUND_ROOF_ROW;
-                    CreateGround(groundPool,(Vector2) {100+j*frameHeight-overhang + relativeXPos*canvas.texture.width, (canvas.texture.height - 150) - (i)*(frameHeight)-50}, frameWidth+2*overhang, 20, true, false, false, false);
-                }
-                DrawTexturePro(atlas, (Rectangle){style*frameWidth, buildingRow*frameHeight, isFlipped*frameWidth, frameHeight},
-                    (Rectangle){100+j*frameHeight-overhang, (canvas.texture.height - 150) - (i+1)*(frameHeight), frameWidth+2*overhang, frameHeight}, // deslocado 150 pixels acima do fundo da tela
-                    (Vector2) {0, 0}, 0, WHITE);
             }
         }
         break;
-    default:
+    case URBAN_FOREST:
+        DrawRectangle(0, screenHeight-200, screenWidth, 200, DARKGREEN);
+        numOfRows = GetRandomValue(2,3);
+        int yOffset = 250;
+        for (int i = 0; i < numOfRows; i++) {
+            yOffset -= GetRandomValue(15,24);
+            for (int k = frameWidth/2; k < screenWidth - frameWidth-50; k++){
+                k+=49;
+                willDraw = GetRandomValue(1,10);
+                if (willDraw >= 2) { // 90% de chance de desenhar árvore
+                    treeId = GetRandomValue(FOREGROUND_TREE1_COL, FOREGROUND_TREE3_COL);
+                    DrawTexturePro(atlas, (Rectangle){treeId*frameWidth, FOREGROUND_TREE_ROW*frameHeight,  frameWidth, frameHeight},
+                        (Rectangle){k + GetRandomValue(-5, 5), (canvas.texture.height - 150) - yOffset+ GetRandomValue(0, 7), frameWidth, frameHeight * (1 + GetRandomValue(0,3)/10)},
+                        (Vector2) {0, 0}, 0, WHITE);
+                }
+            }
+        }
+        //if (GetRandomValue(1,2) == 1) { // Tem cerca
+        float ratio = (10* (float)frameWidth/ (float) screenWidth);
+            for (int i = 0; i < (int)(screenWidth/frameWidth)+1; i++) {
+                if (i == 0 || i == (int)(screenWidth/frameWidth)) {
+                        DrawTexturePro(atlas, (Rectangle){FOREGROUND_STREET_WALL[0]*frameWidth, FOREGROUND_STREET_WALL[1]*frameHeight,  frameWidth, frameHeight},
+                            (Rectangle){i*frameWidth*0.96f, (screenHeight - frameHeight - 150), frameWidth*0.96f, frameHeight},
+                            (Vector2) {0, 0}, 0, WHITE);
+                    } else {
+                        DrawTexturePro(atlas, (Rectangle){FOREGROUND_FENCE[0]*frameWidth, FOREGROUND_FENCE[1]*frameHeight,  frameWidth, frameHeight},
+                            (Rectangle){i*frameWidth*0.96f, (screenHeight - frameHeight - 150), frameWidth*0.96f, frameHeight},
+                            (Vector2) {0, 0}, 0, WHITE);
+
+                        if (GetRandomValue(1,50) == 1) {
+                            int Col = GetRandomValue(0,FOREGROUND_DECALS[2]-1);
+                            int Row = GetRandomValue(0,FOREGROUND_DECALS[3]-1);
+                            DrawTexturePro(atlas, (Rectangle){(FOREGROUND_DECALS[0]+Col)*frameWidth, (FOREGROUND_DECALS[1]+Row)*frameHeight,  frameWidth, frameHeight},
+                            (Rectangle){i*frameWidth*0.96f + (0.96f*frameWidth)/2 - 0.25f*frameWidth, (screenHeight - 2*frameHeight/3 - 120 - GetRandomValue(30,55)), frameWidth*0.5f, frameHeight*0.5f},
+                            (Vector2) {0, 0}, 0, WHITE);
+                        }
+                    }
+            }
+        //}
         break;
+    default:    
+        break;
+    }
+
+    // Chão
+    for (int i = 0; i < (int)(screenWidth/frameWidth)+1; i++) {
+        DrawTexturePro(atlas, (Rectangle){0, FOREGROUND_STREET_ROW*frameHeight, frameWidth, frameHeight},
+                        (Rectangle){i*frameWidth, (canvas.texture.height - 150), frameWidth, frameHeight},
+                        (Vector2) {0, 0}, 0, WHITE);
+    }
+
+    // Poste
+    for (int i = 0; i < 3; i++) {
+        if (i == 1) {
+            if (GetRandomValue(1,10) == 1) {
+                DrawTexturePro(atlas, (Rectangle){FOREGROUND_BUS_STOP[0]*frameWidth, FOREGROUND_BUS_STOP[1]*frameHeight, frameWidth, frameHeight},
+                    (Rectangle){2*frameWidth + i*2*frameWidth , screenHeight - 1.15f*frameHeight - 125, 1.15f*frameWidth, 1.15f*frameHeight},
+                    (Vector2) {0, 0}, 0, WHITE);
+            }
+        } else {
+            DrawTexturePro(atlas, (Rectangle){FOREGROUND_LAMP_POST[0]*frameWidth, FOREGROUND_LAMP_POST[1]*frameHeight, frameWidth, frameHeight},
+                (Rectangle){2*frameWidth + i*2*frameWidth , screenHeight - 1.15f*frameHeight - 125, 1.15f*frameWidth, 1.15f*frameHeight},
+                (Vector2) {0, 0}, 0, WHITE);
+        }
     }
     EndTextureMode();
 }

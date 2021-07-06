@@ -16,7 +16,7 @@ enum ENEMY_BEHAVIOR{NONE, ATTACK, MOVE};
 enum BACKGROUND_TYPES{BACKGROUND, MIDDLEGROUND, FOREGROUND};
 enum BACKGROUND_STYLE{SKYSCRAPER};
 enum MIDDLEGROUND_STYLE{COMPLEX, RED_BUILDING};
-enum FOREGROUND_STYLE{RESIDENTIAL};
+enum FOREGROUND_STYLE{RESIDENTIAL, URBAN_FOREST};
 enum BULLET_TYPE{MAGNUM, SNIPER, LASER};
 enum ENEMY_CLASSES{SWORDSMAN, ASSASSIN, GUNNER, SNIPERSHOOTER, DRONE, TURRET, BOSS};
 enum OBJECTS_TYPES {METAL_CRATE, AMMO_CRATE, HP_CRATE, CARD_CRATE1, CARD_CRATE2, CARD_CRATE3, TRASH_BIN, EXPLOSIVE_BARREL, METAL_BARREL, GARBAGE_BAG1, GARBAGE_BAG2, TRASH_CONTAINER, ROAD_BLOCK};
@@ -26,6 +26,7 @@ enum PARTICLE_TYPES {EXPLOSION, SMOKE, BLOOD_SPILL, MAGNUM_SHOOT};
 const float GRAVITY = 400; // 400 px / f²
 const float bulletLifeTime = 4; // 4 s
 const float grenadeExplosionTime = 4; // 4 s
+const float msgTime = 3; // 4 s
 const static int numBackgroundRendered = 7;
 const static int maxNumBullets = 100;
 const static int maxNumParticles = 500;
@@ -33,7 +34,8 @@ const static int maxNumGrenade = 50;
 const static int maxNumEnemies = 60;
 const static int maxNumGrounds = 300;
 const static int maxNumEnvProps = 50;
-const static int numEnemyClasses = 7;
+const static int maxNumMSGs = 50;
+const static int numEnemyClasses = 6;
 const int screenWidth = 1920;
 const int screenHeight = 1080;
 const char gameName[30] = "Project N30-N";
@@ -84,11 +86,27 @@ typedef struct entity {
     bool upPressed;
     bool downPressed;
 
+    //////
+    int GRID[2];
+    int LEGS_IDLE_ROW;
+    int LEGS_IDLE_NUM_FRAMES;
+    int LEGS_WALKING_ROW;
+    int LEGS_WALKING_NUM_FRAMES;
+    int UPPER_IDLE_ROW;
+    int UPPER_IDLE_NUM_FRAMES;
+    int UPPER_WALKING_ROW;
+    int UPPER_WALKING_NUM_FRAMES;
+    int UPPER_ATTACKING_ROW;
+    int UPPER_ATTACKING_NUM_FRAMES;
+    int BODY_DYING_ROW;
+    int BODY_DYING_NUM_FRAMES;
+
 } Entity;
 
 typedef struct player
 {
     Entity entity;
+    long points;
 
 }  Player;
 
@@ -174,6 +192,17 @@ typedef struct particle {
 
 } Particle;
 
+typedef struct msgsystem {
+    int id;
+    Vector2 position;
+    Color color;
+    int colorId;
+    int msg;
+    float lifeTime;
+    bool isActive;
+    
+} MSGSystem;
+
 typedef struct bullet {
     Vector2 position;
     int id;
@@ -233,24 +262,27 @@ Player CreatePlayer(int maxHP, Vector2 position, int width, int height);
 void CreateEnemy(Enemy *enemyPool, enum ENEMY_CLASSES class, Vector2 position, int width, int height);
 void CreateGrenade(Entity *entity, Grenade *grenadePool, enum ENTITY_TYPES srcEntity);
 void CreateParticle(Vector2 srcPosition, Vector2 velocity, Particle *particlePool, enum PARTICLE_TYPES type, float animTime, float angularVelocity, Vector2 scaleRange, bool isLoopable, int facingRight);
+void CreateMSG(Vector2 srcPosition, MSGSystem *msgPool, int value);
 
 void DestroyEnvProp(EnvProps *envPropsPool, Ground *groundsPool, int envPropID);
 
 void UpdateBackground(Player *player, Background *backgroundPool, int i, Texture2D srcAtlas, Enemy *enemyPool, EnvProps *envPropsPool, Ground *groundPool, float delta, int *numBackground, float minX, float *maxX);
 void UpdateClampedCameraPlayer(Camera2D *camera, Player *player, float delta, int width, int height, float *minX, float maxX);
 void UpdatePlayer(Player *player, Enemy *enemy, Bullet *bulletPool, Grenade *grenadePool, float delta, Ground *ground, EnvProps *envProps, float minX);
-void UpdateBullets(Bullet *bullet, Enemy *enemy, Player *player, Ground *ground, EnvProps *envProp, float delta);
+void UpdateBullets(Bullet *bullet, Enemy *enemy, Player *player, MSGSystem *msgSystem, Ground *ground, EnvProps *envProp, float delta);
 void UpdateEnemy(Enemy *enemy, Player *player, Bullet *bulletPool, float delta, Ground *ground, EnvProps *envProps);
 void UpdateGrounds(Player *player, Ground *ground, float delta, float minX);
 void UpdateEnvProps(Player *player, EnvProps *envPropsPool, Ground *groundsPool, float delta, float minX);
-void UpdateGrenades(Grenade *grenade, Enemy *enemy, Player *player, Ground *ground, EnvProps *envProp, Particle *particlePool, float delta);
-void UpdateParticles(Particle *curParticle, float delta, float minX);
+void UpdateGrenades(Grenade *grenade, Enemy *enemy, Player *player, MSGSystem *msgSystem, Ground *ground, EnvProps *envProp, Particle *particlePool, float delta);
+void UpdateParticles(Particle *particlePool, float delta, float minX);
+void UpdateMSGs(MSGSystem *curMsg, float delta);
 
 void DrawEnemy(Enemy *enemy, Texture2D *texture, bool drawDetectionCollision, bool drawLife, bool drawCollisionBox);
 void DrawBullet(Bullet *bullet, Texture2D texture, bool drawCollisionBox);
 void DrawPlayer(Player *player, Texture2D texture, bool drawCollisionBox);
 void DrawGrenade(Grenade *grenade, Texture2D texture, bool drawCollisionCircle);
 void DrawParticle(Particle *particle, Texture2D texture);
+void DrawMSG(MSGSystem *msg);
 
 RenderTexture2D PaintCanvas(Texture2D atlas, enum BACKGROUND_TYPES bgLayer, Ground *groundPool, int relativeXPos);
 
@@ -278,6 +310,15 @@ void LookAtTarget(Enemy *enemy) {
 void MoveToTarget(Enemy *enemy) {
     LookAtTarget(enemy);
     enemy->entity.momentum.x += 200;
+}
+
+void KillEnemy(Player *player, Enemy *enemy, MSGSystem *msgSystem) {
+    int value = 1000;
+    Vector2 position = enemy->entity.position;
+    position.y += 20;
+    player->points += 1000;
+    CreateMSG(position, msgSystem, value);
+    enemy->entity.currentHP = 0;
 }
 
 void AttackTarget(Enemy *enemy, Bullet *bulletPool) {
@@ -491,17 +532,8 @@ void PhysicsAndGraphicsHandlers (Entity *entity, float delta, enum CHARACTER_STA
             lAnimRow = PLAYER_LEGS_IDLE_ROW;
             PlayEntityAnimation(entity, delta, lowerAnimation, PLAYER_LEGS_IDLE_NUM_FRAMES, true, false, -1, false, IDLE);
         } else {
-            switch (enemyClass)
-            {
-            case ASSASSIN:
-                lAnimRow = ASSASSIN_LEGS_IDLE_ROW;
-                PlayEntityAnimation(entity, delta, lowerAnimation, ASSASSIN_LEGS_IDLE_NUM_FRAMES, true, false, -1, false, IDLE);
-                break;
-            default:
-                lAnimRow = PLAYER_LEGS_IDLE_ROW;
-                PlayEntityAnimation(entity, delta, lowerAnimation, PLAYER_LEGS_IDLE_NUM_FRAMES, true, false, -1, false, IDLE);
-                break;
-            }
+            lAnimRow = entity->LEGS_IDLE_ROW;
+            PlayEntityAnimation(entity, delta, lowerAnimation, entity->LEGS_IDLE_NUM_FRAMES, true, false, -1, false, IDLE);
         }
         break;
     case WALKING:
@@ -509,17 +541,8 @@ void PhysicsAndGraphicsHandlers (Entity *entity, float delta, enum CHARACTER_STA
             lAnimRow = PLAYER_LEGS_WALKING_ROW;
             PlayEntityAnimation(entity, delta, lowerAnimation, PLAYER_LEGS_WALKING_NUM_FRAMES, true, false, -1, false, WALKING);
         } else {
-            switch (enemyClass)
-            {
-            case ASSASSIN:
-                lAnimRow = ASSASSIN_LEGS_WALKING_ROW;
-                PlayEntityAnimation(entity, delta, lowerAnimation, ASSASSIN_LEGS_WALKING_NUM_FRAMES, true, false, -1, false, WALKING);
-                break;
-            default:
-                lAnimRow = PLAYER_LEGS_WALKING_ROW;
-                PlayEntityAnimation(entity, delta, lowerAnimation, PLAYER_LEGS_WALKING_NUM_FRAMES, true, false, -1, false, WALKING);
-                break;
-            }
+            lAnimRow = entity->LEGS_WALKING_ROW;
+            PlayEntityAnimation(entity, delta, lowerAnimation, entity->LEGS_WALKING_NUM_FRAMES, true, false, -1, false, WALKING);
         }
         break;
     case JUMPING:
@@ -527,17 +550,7 @@ void PhysicsAndGraphicsHandlers (Entity *entity, float delta, enum CHARACTER_STA
             lAnimRow = PLAYER_LEGS_JUMPING_ROW;
             PlayEntityAnimation(entity, delta, lowerAnimation, PLAYER_LEGS_JUMPING_NUM_FRAMES, false, false, -1, false, JUMPING);
         } else {
-            switch (enemyClass)
-            {
-            case ASSASSIN: // Não tem animação.. deixando como IDLE
-                lAnimRow = ASSASSIN_LEGS_IDLE_ROW;
-                PlayEntityAnimation(entity, delta, lowerAnimation, ASSASSIN_LEGS_IDLE_NUM_FRAMES, false, false, -1, false, JUMPING);
-                break;
-            default:
-                lAnimRow = PLAYER_LEGS_JUMPING_ROW;
-                PlayEntityAnimation(entity, delta, lowerAnimation, PLAYER_LEGS_JUMPING_NUM_FRAMES, false, false, -1, false, JUMPING);
-                break;
-            }
+            // Não tem animação para os inimigos...
         }
         break;
     case FALLING:
@@ -545,17 +558,7 @@ void PhysicsAndGraphicsHandlers (Entity *entity, float delta, enum CHARACTER_STA
             lAnimRow = PLAYER_LEGS_JUMPING_ROW;
             PlayEntityAnimation(entity, delta, lowerAnimation, PLAYER_LEGS_JUMPING_NUM_FRAMES, false, true, PLAYER_LEGS_JUMPING_NUM_FRAMES, false, FALLING);
         } else {
-            switch (enemyClass)
-            {
-            case ASSASSIN: // Não tem animação.. deixando como IDLE
-                lAnimRow = ASSASSIN_LEGS_IDLE_ROW;
-                PlayEntityAnimation(entity, delta, lowerAnimation, ASSASSIN_LEGS_IDLE_NUM_FRAMES, false, true, ASSASSIN_LEGS_IDLE_NUM_FRAMES, false, FALLING);
-                break;
-            default:
-                lAnimRow = PLAYER_LEGS_JUMPING_ROW;
-                PlayEntityAnimation(entity, delta, lowerAnimation, PLAYER_LEGS_JUMPING_NUM_FRAMES, false, true, PLAYER_LEGS_JUMPING_NUM_FRAMES, false, FALLING);
-                break;
-            }
+            // Não tem animação para os inimigos...
         }
         break;
     case DYING:
@@ -563,17 +566,8 @@ void PhysicsAndGraphicsHandlers (Entity *entity, float delta, enum CHARACTER_STA
             lAnimRow = PLAYER_BODY_DYING_ROW;
             PlayEntityAnimation(entity, delta, lowerAnimation, PLAYER_BODY_DYING_NUM_FRAMES, false, false, -1, false, DYING);
         } else {
-            switch (enemyClass)
-            {
-            case ASSASSIN:
-                lAnimRow = ASSASSIN_BODY_DYING_ROW;
-                PlayEntityAnimation(entity, delta, lowerAnimation, ASSASSIN_BODY_DYING_NUM_FRAMES, false, false, -1, false, DYING);
-                break;
-            default:
-                lAnimRow = PLAYER_BODY_DYING_ROW;
-                PlayEntityAnimation(entity, delta, lowerAnimation, PLAYER_BODY_DYING_NUM_FRAMES, false, false, -1, false, DYING);
-                break;
-            }
+            lAnimRow = entity->BODY_DYING_ROW;
+            PlayEntityAnimation(entity, delta, lowerAnimation, entity->BODY_DYING_NUM_FRAMES, false, false, -1, false, DYING);
         }
         break;
     default:
@@ -587,17 +581,8 @@ void PhysicsAndGraphicsHandlers (Entity *entity, float delta, enum CHARACTER_STA
             uAnimRow = PLAYER_UPPER_IDLE_ROW;
             PlayEntityAnimation(entity, delta, upperAnimation, PLAYER_UPPER_IDLE_NUM_FRAMES, true, false, -1, false, IDLE);
         } else {
-            switch (enemyClass)
-            {
-            case ASSASSIN:
-                uAnimRow = ASSASSIN_UPPER_IDLE_ROW;
-                PlayEntityAnimation(entity, delta, upperAnimation, ASSASSIN_UPPER_IDLE_NUM_FRAMES, true, false, -1, false, IDLE);
-                break;
-            default:
-                uAnimRow = PLAYER_UPPER_IDLE_ROW;
-                PlayEntityAnimation(entity, delta, upperAnimation, PLAYER_UPPER_IDLE_NUM_FRAMES, true, false, -1, false, IDLE);
-                break;
-            }
+            uAnimRow = entity->UPPER_IDLE_ROW;
+            PlayEntityAnimation(entity, delta, upperAnimation, entity->UPPER_IDLE_NUM_FRAMES, true, false, -1, false, IDLE);
         }
         break;
     case WALKING:
@@ -605,17 +590,8 @@ void PhysicsAndGraphicsHandlers (Entity *entity, float delta, enum CHARACTER_STA
             uAnimRow = PLAYER_UPPER_WALKING_ROW;
             PlayEntityAnimation(entity, delta, upperAnimation, PLAYER_UPPER_WALKING_NUM_FRAMES, true, false, -1, false, WALKING);
         } else {
-            switch (enemyClass)
-            {
-            case ASSASSIN:
-                uAnimRow = ASSASSIN_UPPER_WALKING_ROW;
-                PlayEntityAnimation(entity, delta, upperAnimation, ASSASSIN_UPPER_WALKING_NUM_FRAMES, true, false, -1, false, WALKING);
-                break;
-            default:
-                uAnimRow = PLAYER_UPPER_WALKING_ROW;
-                PlayEntityAnimation(entity, delta, upperAnimation, PLAYER_UPPER_WALKING_NUM_FRAMES, true, false, -1, false, WALKING);
-                break;
-            }
+            uAnimRow = entity->UPPER_WALKING_ROW;
+            PlayEntityAnimation(entity, delta, upperAnimation, entity->UPPER_WALKING_NUM_FRAMES, true, false, -1, false, WALKING);
         }
         break;
     case JUMPING:
@@ -623,17 +599,7 @@ void PhysicsAndGraphicsHandlers (Entity *entity, float delta, enum CHARACTER_STA
             uAnimRow = PLAYER_UPPER_JUMPING_ROW;
             PlayEntityAnimation(entity, delta, upperAnimation, PLAYER_UPPER_JUMPING_NUM_FRAMES, false, false, -1, false, JUMPING);
         } else {
-            switch (enemyClass)
-            {
-            case ASSASSIN:
-                uAnimRow = ASSASSIN_UPPER_IDLE_ROW;
-                PlayEntityAnimation(entity, delta, upperAnimation, ASSASSIN_UPPER_IDLE_NUM_FRAMES, false, false, -1, false, JUMPING);
-                break;
-            default:
-                uAnimRow = PLAYER_UPPER_JUMPING_ROW;
-                PlayEntityAnimation(entity, delta, upperAnimation, PLAYER_UPPER_JUMPING_NUM_FRAMES, false, false, -1, false, JUMPING);
-                break;
-            }
+            // Não tem animção para os inimigos...
         }
         break;
     case FALLING:
@@ -641,53 +607,25 @@ void PhysicsAndGraphicsHandlers (Entity *entity, float delta, enum CHARACTER_STA
             uAnimRow = PLAYER_UPPER_JUMPING_ROW;
             PlayEntityAnimation(entity, delta, upperAnimation, PLAYER_UPPER_JUMPING_NUM_FRAMES, false, true, PLAYER_UPPER_JUMPING_NUM_FRAMES, false, FALLING);
         } else {
-            switch (enemyClass)
-            {
-            case ASSASSIN:
-                uAnimRow = ASSASSIN_UPPER_IDLE_ROW;
-                PlayEntityAnimation(entity, delta, upperAnimation, ASSASSIN_UPPER_IDLE_NUM_FRAMES, false, true, ASSASSIN_UPPER_IDLE_NUM_FRAMES, false, FALLING);
-                break;
-            default:
-                uAnimRow = PLAYER_UPPER_JUMPING_ROW;
-                PlayEntityAnimation(entity, delta, upperAnimation, PLAYER_UPPER_JUMPING_NUM_FRAMES, false, true, PLAYER_UPPER_JUMPING_NUM_FRAMES, false, FALLING);
-                break;
-            }
+            // Não tem animação para os inimigos...
         }
         break;
     case ATTACKING:
         if (entityType == PLAYER) {
             if (entity->upPressed) {
-                uAnimRow = PLAYER_UPPER_SHOOTING_45U_ROW;
-                numOfFrames = PLAYER_UPPER_SHOOTING_45U_NUM_FRAMES;
+                uAnimRow = PLAYER_UPPER_ATTACKING_45U_ROW;
+                numOfFrames = PLAYER_UPPER_ATTACKING_45U_NUM_FRAMES;
             } else if (entity->downPressed) {
-                uAnimRow = PLAYER_UPPER_SHOOTING_45D_ROW;
-                numOfFrames = PLAYER_UPPER_SHOOTING_45D_NUM_FRAMES;
+                uAnimRow = PLAYER_UPPER_ATTACKING_45D_ROW;
+                numOfFrames = PLAYER_UPPER_ATTACKING_45D_NUM_FRAMES;
             } else {
-                uAnimRow = PLAYER_UPPER_SHOOTING_ROW;
-                numOfFrames = PLAYER_UPPER_SHOOTING_NUM_FRAMES;
+                uAnimRow = PLAYER_UPPER_ATTACKING_ROW;
+                numOfFrames = PLAYER_UPPER_ATTACKING_NUM_FRAMES;
             }
             PlayEntityAnimation(entity, delta, upperAnimation, numOfFrames, false, false, -1, true, IDLE);
         } else {
-            switch (enemyClass)
-            {
-            case ASSASSIN:
-                uAnimRow = ASSASSIN_UPPER_ATTACKING_ROW;
-                PlayEntityAnimation(entity, delta, lowerAnimation, ASSASSIN_UPPER_ATTACKING_NUM_FRAMES, false, false, -1, true, IDLE);
-                break;
-            default:
-                if (entity->upPressed) {
-                    uAnimRow = PLAYER_UPPER_SHOOTING_45U_ROW;
-                    numOfFrames = PLAYER_UPPER_SHOOTING_45U_NUM_FRAMES;
-                } else if (entity->downPressed) {
-                    uAnimRow = PLAYER_UPPER_SHOOTING_45D_ROW;
-                    numOfFrames = PLAYER_UPPER_SHOOTING_45D_NUM_FRAMES;
-                } else {
-                    uAnimRow = PLAYER_UPPER_SHOOTING_ROW;
-                    numOfFrames = PLAYER_UPPER_SHOOTING_NUM_FRAMES;
-                }
-                PlayEntityAnimation(entity, delta, upperAnimation, numOfFrames, false, false, -1, true, IDLE);
-                break;
-            }
+            uAnimRow = entity->UPPER_ATTACKING_ROW;
+            PlayEntityAnimation(entity, delta, lowerAnimation, entity->UPPER_ATTACKING_NUM_FRAMES, false, false, -1, true, IDLE);
         }
         break;
     case DYING:
@@ -698,17 +636,7 @@ void PhysicsAndGraphicsHandlers (Entity *entity, float delta, enum CHARACTER_STA
             uAnimRow = PLAYER_UPPER_THROWING_ROW;
             PlayEntityAnimation(entity, delta, upperAnimation, PLAYER_UPPER_THROWING_NUM_FRAMES, false, false, -1, true, IDLE);
         } else {
-            switch (enemyClass)
-            {
-            case ASSASSIN:
-                uAnimRow = ASSASSIN_UPPER_IDLE_ROW;
-                PlayEntityAnimation(entity, delta, upperAnimation, ASSASSIN_UPPER_IDLE_NUM_FRAMES, false, false, -1, true, IDLE);
-                break;
-            default:
-                uAnimRow = PLAYER_UPPER_THROWING_ROW;
-                PlayEntityAnimation(entity, delta, upperAnimation, PLAYER_UPPER_THROWING_NUM_FRAMES, false, false, -1, true, IDLE);
-                break;
-            }
+            // Não tem animação para o inimigo...
         }
         break;
     default:
@@ -830,7 +758,7 @@ void HurtEntity(Entity *dstEntity, Bullet srcBullet, float damage) {
     dstEntity->currentHP -= damage;
 }
 
-void ExplosionAOE(EnvProps *envPropPool, Enemy *enemyPool, Ground *groundPool, int explosionRadius, float energy, Vector2 centerOfExplosion, enum ENTITY_TYPES srcEntity) {
+void ExplosionAOE(Player *player, MSGSystem *msgSystem, EnvProps *envPropPool, Enemy *enemyPool, Ground *groundPool, int explosionRadius, float energy, Vector2 centerOfExplosion, enum ENTITY_TYPES srcEntity) {
     int maxCount = 0;
     maxCount = fmax(maxNumGrounds, maxNumGrenade);
     maxCount = fmax(maxCount, maxNumEnvProps);
@@ -850,8 +778,9 @@ void ExplosionAOE(EnvProps *envPropPool, Enemy *enemyPool, Ground *groundPool, i
         if (i < maxNumEnemies) {
             Enemy *curEnemy = enemyPool + i;
             // Enemy
-            if (curEnemy->isAlive) {
+            if (curEnemy->entity.lowerAnimation.currentAnimationState != DYING) {
                 if (CheckCollisionCircleRec(centerOfExplosion, explosionRadius, curEnemy->entity.collisionBox)) {
+                    KillEnemy(player, curEnemy, msgSystem);
                     curEnemy->entity.currentHP = 0;
                 }
             }
@@ -870,11 +799,11 @@ void PopulateChunk(int chunkId, EnvProps *envPropsPool, Ground *groundPool, Enem
     if (GetRandomValue(1,100) <= objProb) {
         objAdditions++;
         int obType = GetRandomValue(METAL_CRATE, GARBAGE_BAG2);
-        //CreateEnvProp(envPropsPool, groundPool, obType, (Vector2) {chunkId*screenWidth + GetRandomValue(5, 10) + objAdditions*200, screenHeight-150-200}, 200, 200);
+        CreateEnvProp(envPropsPool, groundPool, obType, (Vector2) {chunkId*screenWidth + GetRandomValue(5, 10) + objAdditions*200, screenHeight-150-200}, 200, 200);
     }
     if (GetRandomValue(1,100) <= enemyProb) {
         enemyAdditions++;
-        int enClass = GetRandomValue(SWORDSMAN, ASSASSIN);
+        int enClass = GetRandomValue(ASSASSIN, GUNNER);
         CreateEnemy(enemyPool, enClass, (Vector2) {chunkId*screenWidth + GetRandomValue(50, 100) + enemyAdditions*3, screenHeight-250}, 122, 122);
     }
 }
