@@ -24,7 +24,7 @@ enum PARTICLE_TYPES {EXPLOSION, SMOKE, BLOOD_SPILL, MAGNUM_SHOOT};
 
 // Consts
 const float GRAVITY = 400; // 400 px / f²
-const float bulletLifeTime = 4; // 4 s
+const float bulletLifeTime = 0.8; // 4 s
 const float grenadeExplosionTime = 4; // 4 s
 const float msgTime = 3; // 4 s
 const static int numBackgroundRendered = 7;
@@ -267,10 +267,10 @@ void CreateMSG(Vector2 srcPosition, MSGSystem *msgPool, int value);
 void DestroyEnvProp(EnvProps *envPropsPool, Ground *groundsPool, int envPropID);
 
 void UpdateBackground(Player *player, Background *backgroundPool, int i, Texture2D srcAtlas, Enemy *enemyPool, EnvProps *envPropsPool, Ground *groundPool, float delta, int *numBackground, float minX, float *maxX);
-void UpdateClampedCameraPlayer(Camera2D *camera, Player *player, float delta, int width, int height, float *minX, float maxX);
+void UpdateClampedCameraPlayer(Camera2D *camera, Player *player, float delta, int width, int height, float *minX, float *maxX);
 void UpdatePlayer(Player *player, Enemy *enemy, Bullet *bulletPool, Grenade *grenadePool, float delta, Ground *ground, EnvProps *envProps, float minX);
-void UpdateBullets(Bullet *bullet, Enemy *enemy, Player *player, MSGSystem *msgSystem, Ground *ground, EnvProps *envProp, float delta);
-void UpdateEnemy(Enemy *enemy, Player *player, Bullet *bulletPool, float delta, Ground *ground, EnvProps *envProps);
+void UpdateBullets(Bullet *bullet, Enemy *enemy, Player *player, MSGSystem *msgSystem, Ground *ground, EnvProps *envProp, float delta, int maxX);
+void UpdateEnemy(Enemy *enemy, Player *player, Bullet *bulletPool, float delta, Ground *ground, EnvProps *envProps, int minX);
 void UpdateGrounds(Player *player, Ground *ground, float delta, float minX);
 void UpdateEnvProps(Player *player, EnvProps *envPropsPool, Ground *groundsPool, float delta, float minX);
 void UpdateGrenades(Grenade *grenade, Enemy *enemy, Player *player, MSGSystem *msgSystem, Ground *ground, EnvProps *envProp, Particle *particlePool, float delta);

@@ -25,6 +25,11 @@ int main(void) {
     enemyTex[TURRET] = LoadTexture("resources/Atlas/hero_atlas_div.png");
     enemyTex[BOSS] = LoadTexture("resources/Atlas/hero_atlas_div.png");
 
+    InitAudioDevice();              // Initialize audio device
+    Music ambience = LoadMusicStream("resources/Audio/ambience.mp3");
+    SetMasterVolume(0.3f);
+    PlayMusicStream(ambience);
+
     // Controle de fluxo do jogo
     float time = 0;
     int difficulty = 0;
@@ -100,6 +105,8 @@ int main(void) {
 
     // Loop do jogo
     while (!WindowShouldClose()) {
+        UpdateMusicStream(ambience);   // Update music buffer with new stream data
+
         // Game State
         if (IsKeyPressed(KEY_ESCAPE)) {
             if (gameState == ACTIVE) {
@@ -110,6 +117,8 @@ int main(void) {
                 HideCursor();
             }
         }
+
+        camera.zoom += ((float)GetMouseWheelMove()*0.05f);
         
         // Jogo em andamento
         if (gameState == ACTIVE) {
@@ -126,12 +135,12 @@ int main(void) {
 
             // Atualizar limites de câmera e posição
             camMinX = (camMinX < camera.target.x - camera.offset.x ? camera.target.x - camera.offset.x : camMinX);
-            UpdateClampedCameraPlayer(&camera, &player, deltaTime, screenWidth, screenHeight, &camMinX, camMaxX);
+            UpdateClampedCameraPlayer(&camera, &player, deltaTime, screenWidth, screenHeight, &camMinX, &camMaxX);
 
             for (int i = 0; i < maxCount; i++) {
                 if (i < maxNumBullets) {
-                    if (bulletsPool[i].isActive)
-                        UpdateBullets(&bulletsPool[i], enemyPool, &player, msgPool, groundPool, envPropsPool, deltaTime);
+                    if (bulletsPool[i].isActive) 
+                        UpdateBullets(&bulletsPool[i], enemyPool, &player, msgPool, groundPool, envPropsPool, deltaTime, camMaxX);
                 }
 
                 if (i < maxNumGrenade) {
@@ -152,7 +161,7 @@ int main(void) {
 
                 if (i < maxNumEnemies) {
                     if (enemyPool[i].isAlive) 
-                        UpdateEnemy(&enemyPool[i], &player, bulletsPool, deltaTime, groundPool, envPropsPool);
+                        UpdateEnemy(&enemyPool[i], &player, bulletsPool, deltaTime, groundPool, envPropsPool, camMinX);
                 }
 
                 if (i < maxNumParticles) {
@@ -335,6 +344,9 @@ int main(void) {
     for (int i = 0; i < numEnemyClasses; i++)
         UnloadTexture(enemyTex[i]);
 
+    UnloadMusicStream(ambience);
+    CloseAudioDevice();  
+
     CloseWindow();
     return 0;
 }
@@ -493,7 +505,7 @@ void CreateEnemy(Enemy *enemyPool, enum ENEMY_CLASSES class, Vector2 position, i
             newEnemy->entity.BODY_DYING_NUM_FRAMES = 0;
 
             //Valores para range de ataque e de visão selecionados de forma arbitraria, atualizar posteriormente
-            newEnemy->entity.maxHP = 500;
+            newEnemy->entity.maxHP = 100;
             newEnemy->entity.currentHP = newEnemy->entity.maxHP;
             switch (class){
                 case SWORDSMAN:
@@ -1092,7 +1104,7 @@ void UpdatePlayer(Player *player, Enemy *enemy, Bullet *bulletPool, Grenade *gre
         player->entity.collisionBox = (Rectangle) {player->entity.position.x  - player->entity.width + (player->entity.lowerAnimation.isFacingRight == -1 ? 0.43f : 0.23f) * player->entity.width, player->entity.position.y, player->entity.width, player->entity.height/2};
 }
 
-void UpdateEnemy(Enemy *enemy, Player *player, Bullet *bulletPool, float delta, Ground *ground, EnvProps *envProps) {
+void UpdateEnemy(Enemy *enemy, Player *player, Bullet *bulletPool, float delta, Ground *ground, EnvProps *envProps, int minX) {
     Entity *eEnt = &(enemy->entity);
     enum CHARACTER_STATE currentLowerState = eEnt->lowerAnimation.currentAnimationState;
     enum CHARACTER_STATE currentUpperState = eEnt->upperAnimation.currentAnimationState;
@@ -1100,7 +1112,10 @@ void UpdateEnemy(Enemy *enemy, Player *player, Bullet *bulletPool, float delta, 
     eEnt->lowerAnimation.timeSinceLastFrame += delta;
     enemy->timeSinceLastBehaviorChange += delta;
     enemy->timeSinceLastAttack += delta;
-    char temp[30] = "";
+
+    if (enemy->entity.position.x + enemy->entity.width < minX) {
+        enemy->isAlive = false;
+    }
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     // Handler de comportamento do enemy                              ///////////////////////////////////////////////////////////////////////
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1125,7 +1140,7 @@ void UpdateEnemy(Enemy *enemy, Player *player, Bullet *bulletPool, float delta, 
         eEnt->collisionBox = (Rectangle) {eEnt->position.x  - eEnt->width + (eEnt->lowerAnimation.isFacingRight == -1 ? 0.43f : 0.23f) * eEnt->width, eEnt->position.y, eEnt->width, eEnt->height/2};
 }
      
-void UpdateBullets(Bullet *bullet, Enemy *enemy, Player *player, MSGSystem *msgSystem, Ground *ground, EnvProps *envProp, float delta) {
+void UpdateBullets(Bullet *bullet, Enemy *enemy, Player *player, MSGSystem *msgSystem, Ground *ground, EnvProps *envProp, float delta, int maxX) {
     bullet->lifeTime += delta;
     bullet->animation.timeSinceLastFrame += delta;
     // Checar colisão
@@ -1163,7 +1178,7 @@ void UpdateBullets(Bullet *bullet, Enemy *enemy, Player *player, MSGSystem *msgS
                 if (currentEnemy->entity.lowerAnimation.currentAnimationState != DYING) {
                     if (CheckCollisionRecs(currentEnemy->entity.collisionBox, bullet->collisionBox) || CheckCollisionCircleRec(currentEnemy->entity.collisionHead.center, currentEnemy->entity.collisionHead.radius, bullet->collisionBox)) {
                         bullet->isActive = false;
-                        HurtEntity(&(currentEnemy->entity), *bullet, 40); // TODO damage
+                        HurtEntity(&(currentEnemy->entity), *bullet, 50); // TODO damage
                         if (currentEnemy->entity.currentHP <= 0) {
                             KillEnemy(player, currentEnemy, msgSystem);
                         }
@@ -1188,6 +1203,10 @@ void UpdateBullets(Bullet *bullet, Enemy *enemy, Player *player, MSGSystem *msgS
     if (bullet->lifeTime >= bulletLifeTime) {
         bullet->isActive = false;
     } else {
+        if (bullet->position.x + bullet->animation.animationFrameWidth > maxX) {
+            bullet->isActive = false;
+            return;
+        }
         if (bullet->angle == 0)
             bullet->position.x += vel * delta * bullet->direction.x;
         else {
@@ -1282,17 +1301,6 @@ void UpdateGrenades(Grenade *grenade, Enemy *enemy, Player *player, MSGSystem *m
             }
         }
     }
-/*
-    // Colisão com Player
-    if (bullet->srcEntity == ENEMY) {
-        if (CheckCollisionRecs(player->entity.collisionBox, bullet->collisionBox) || CheckCollisionCircleRec(player->entity.collisionHead.center, player->entity.collisionHead.radius, bullet->collisionBox)) {
-            bullet->isActive = false;
-            player->entity.currentHP -= 20;
-            // TODO Causa dano ao player
-            // TODO Criar animação de sangue
-        }
-    }
-*/
 
     // Se não tiver colisão, checar tempo de vida e atualizar posição
     if (grenade->lifeTime >= grenadeExplosionTime) {
@@ -1327,21 +1335,30 @@ void UpdateGrenades(Grenade *grenade, Enemy *enemy, Player *player, MSGSystem *m
 
 }
 
-void UpdateClampedCameraPlayer(Camera2D *camera, Player *player, float delta, int width, int height, float *minX, float maxX) {
+void UpdateClampedCameraPlayer(Camera2D *camera, Player *player, float delta, int width, int height, float *minX, float *maxX) {
+    /*if (player->entity.velocity.y != 0) //|| player->entity.velocity.y != 0)
+        camera->zoom -= delta/20;
+    else
+        camera->zoom += delta/20;
+    
+    if (camera->zoom > 1) camera->zoom = 1;
+    if (camera->zoom < 0.96f) camera->zoom = 0.96f;*/
+
     camera->target = player->entity.position;
     camera->offset = (Vector2){ width/2.0f, height/2.0f };
     float minY = 0.00f, maxY = height; // Camera clamp controls. TODO, maxX
-    
-    *minX = fmaxf(0.0f, *minX);
-    maxX = fmaxf(4*width, maxX);
 
-    Vector2 max = GetWorldToScreen2D((Vector2){ maxX, maxY }, *camera);
+    *minX = fmaxf(0.0f, *minX);
+    *maxX = fmaxf(4*width, *maxX);
+
+    Vector2 max = GetWorldToScreen2D((Vector2){ *maxX, maxY }, *camera);
     Vector2 min = GetWorldToScreen2D((Vector2){ *minX, minY }, *camera);
     
     if (max.x < width) camera->offset.x = width - (max.x - width/2);
     if (max.y < height) camera->offset.y = height - (max.y - height/2);
     if (min.x > 0) camera->offset.x = width/2 - min.x;
-    if (min.y > 0) camera->offset.y = height/2 - min.y;
+    //if (min.y > 0) camera->offset.y = height/2 - min.y;
+
 }
 
 void UpdateGrounds(Player *player, Ground *ground, float delta, float minX) {
@@ -1382,8 +1399,6 @@ void UpdateParticles(Particle *curParticle, float delta, float minX) {
                 curParticle->scaleUp = true;
             }
         }
-
-
 
         // TODO fazer partícula
         // Animação
