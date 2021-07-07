@@ -1,11 +1,12 @@
 #include "gameConfig.c"
+#include "screenScore.c"
 
 int main(void) {
     if (isFullscreen) SetConfigFlags(FLAG_FULLSCREEN_MODE); // Fullscreen
     InitWindow(screenWidth, screenHeight, gameName);
     SetTargetFPS(60);
     SetExitKey(-1);
-    enum GAME_STATE gameState = ACTIVE;
+    enum GAME_STATE gameState = MENU;
     HideCursor();
 
     // Load assets
@@ -30,6 +31,9 @@ int main(void) {
     Music ambience = LoadMusicStream("resources/Audio/ambience.mp3");
     Sound *fxSoundPool = (Sound *)malloc(10*sizeof(Sound));
     fxSoundPool[FX_MAGNUM] = LoadSound("resources/Audio/magnumShot.ogg"); 
+    fxSoundPool[FX_SWORD] = LoadSound("resources/Audio/meleeAtaque.ogg"); 
+    fxSoundPool[FX_CHANGE_SELECTION] = LoadSound("resources/Audio/menuSelectionChange.ogg"); 
+    fxSoundPool[FX_SELECTED] = LoadSound("resources/Audio/menuSelected.ogg"); 
     fxSoundPool[FX_ENTITY_LANDING] = LoadSound("resources/Audio/entityLanding.ogg"); 
     fxSoundPool[FX_GRENADE_LAUNCH] = LoadSound("resources/Audio/grenadeLaunch.ogg"); 
     fxSoundPool[FX_GRENADE_BOUNCING] = LoadSound("resources/Audio/grenadeBouncing.ogg"); 
@@ -44,8 +48,112 @@ int main(void) {
 
     PlayMusicStream(ambience);
 
+    // MENU
+    Texture2D logo = LoadTexture("resources/Menu/menu_logo.png");
+    int currentOption = 1;
+    int nextScreen = -1;
+    bool changeScreen = false;
+
+    // Scores
+    FILE *fptr;
+    int numOfScores = 5;
+    char data[100];
+    char fileName[200];
+    strcpy(fileName, "resources/Text/scores.txt");
+    char *name;
+    int choice = 0;
+    Score *scorePool = (Score *)malloc(2*numOfScores*sizeof(Score));
+    int indexPos = 0;
+    for (int i = 0; i < 2*numOfScores; i+=2) {
+        indexPos++;
+        strcpy(scorePool[i].name," ");
+        strcpy(scorePool[i+1].point,"0");
+    }
+    if (CheckIfFileExists(fileName)) {
+        ReadScore(fptr, fileName, scorePool);
+    } else {
+        WriteScore(fptr, fileName, scorePool);
+    }
+
+Menu:
+    currentOption = 5;
+    nextScreen = -1;
+    changeScreen = false;
+    while (!changeScreen) {
+        UpdateMusicStream(ambience);
+        if (gameState == MENU) {
+            if (IsKeyPressed(KEY_DOWN)) {
+                currentOption++;
+                PlaySoundMulti(fxSoundPool[FX_CHANGE_SELECTION]);
+            } else if (IsKeyPressed(KEY_UP)) {
+                PlaySoundMulti(fxSoundPool[FX_CHANGE_SELECTION]);
+                currentOption--;
+            }
+
+            if (IsKeyPressed(KEY_ENTER)) {
+                nextScreen = currentOption;
+                PlaySoundMulti(fxSoundPool[FX_SELECTED]);
+            }
+
+            if (currentOption > 3) currentOption = 1;
+            if (currentOption < 1) currentOption = 3;
+            
+            BeginDrawing();
+                ClearBackground(GetColor(0x052c46ff));
+                DrawTexturePro(logo, (Rectangle){0, 0, logo.width, logo.height}, (Rectangle){0, 0, screenWidth, screenHeight}, (Vector2) {0, 0}, 0, WHITE);
+                DrawText("START GAME", screenWidth/2 - MeasureText("START GAME", 40)/2, screenHeight/2 + 150, 40,(currentOption == 1 ? YELLOW : WHITE));
+                DrawText("HIGHSCORES", screenWidth/2 - MeasureText("HIGHSCORES", 40)/2, screenHeight/2 + 200, 40,(currentOption == 2 ? YELLOW : WHITE));
+                DrawText("EXIT", screenWidth/2 - MeasureText("EXIT", 40)/2, screenHeight/2 + 250, 40,(currentOption == 3 ? YELLOW : WHITE));
+            EndDrawing();
+
+            if (nextScreen == 1) {
+                gameState = ACTIVE;
+                changeScreen = true;
+            } else if (nextScreen == 2) {
+                gameState = SCORE;
+                currentOption = 1;
+                nextScreen = -1;
+            } else if (nextScreen == 3) {
+                gameState = ACTIVE;
+                changeScreen = true;
+                goto Quit;
+            }
+
+        }
+        else if (gameState == SCORE) {
+            
+            if (IsKeyPressed(KEY_ENTER)) {
+                nextScreen = currentOption;
+                PlaySoundMulti(fxSoundPool[FX_SELECTED]);
+            }
+
+            currentOption = 1;
+
+            BeginDrawing();
+                ClearBackground(GetColor(0x052c46ff));
+                int pos = 0;
+                    DrawText("HIGHSCORES",screenWidth/2 - MeasureText("HIGHSCORES", 70)/2, 60, 70, WHITE);
+                for (int i = 0; i < 10; i+=2) {
+                    pos++;
+                    DrawText(TextFormat("%01d", pos), screenWidth/3 - MeasureText(TextFormat("%01d", pos), 60)/2 + 20, 180 + pos*70, 60, YELLOW);
+                    DrawText(scorePool[i].name,screenWidth/2 - MeasureText(scorePool[i].name, 60)/2, 180 + pos*70, 60, WHITE);
+                    DrawText(scorePool[i+1].point, screenWidth/3 *2 , 180 + pos*70, 60, WHITE);
+                }
+                DrawText("BACK", screenWidth/2 - MeasureText("BACK", 40)/2, screenHeight/2 + 250, 40, YELLOW);
+            EndDrawing();
+
+            if (nextScreen == 1) {
+                gameState = MENU;
+                currentOption = 1;
+                nextScreen = -1;
+            }
+        }
+    }
+
+    /////// INÍCIO DO JOGO
     // Controle de fluxo do jogo
     float time = 0;
+    int difficulty = 0;
 
     // Player Init
     Player player = CreatePlayer(100, (Vector2){122, 200},122, 122);
@@ -107,7 +215,8 @@ int main(void) {
 
     // Criar chão
     CreateGround(groundPool, (Vector2){0,screenHeight-60},screenWidth*7,5, true, true, false, true); // Chão (esse é sempre existente)
-    CreateEnemy(enemyPool, ASSASSIN, (Vector2) {650, screenHeight-250}, 135, 135);
+    CreateEnemy(enemyPool, ASSASSIN, (Vector2) {500, 300}, 122, 122);
+    CreateEnemy(enemyPool, GUNNER, (Vector2) {600, 300}, 122, 122);
     
     // Criar chunks
     for (int i = 0; i < numBackgroundRendered; i++) {
@@ -116,37 +225,35 @@ int main(void) {
         nearBackgroundPool[i] = CreateBackground(&player, enemyPool, envPropsPool, nearBackgroundPool, groundPool, foregroundAtlas, FOREGROUND, &numNearBackground, i);
     }
 
+
+    int framesCounter = 0;
+    int received_points, letterCount = 0;
+    char received_name[3 + 1] = "\0";      // NOTE: One extra space required for line ending char '\0'
     // Loop do jogo
     while (!WindowShouldClose()) {
+        framesCounter++;
         UpdateMusicStream(ambience);   // Update music buffer with new stream data
 
         // Game State
         if (IsKeyPressed(KEY_ESCAPE)) {
             if (gameState == ACTIVE) {
                 gameState = PAUSE;
-                ShowCursor();
-            } else if (gameState == PAUSE) {
-                gameState = ACTIVE;
-                HideCursor();
+                nextScreen = -1;
+                currentOption = 1;
             }
         }
 
-        camera.zoom += ((float)GetMouseWheelMove()*0.05f);
-        
+        // Verificar Game Over
+        if (player.entity.lowerAnimation.currentAnimationState == DEAD) {
+            gameState = GAMEOVER;
+        }
+
         // Jogo em andamento
         if (gameState == ACTIVE) {
             // Atualizar fluxo
             float deltaTime = GetFrameTime();
             time += deltaTime;
             
-            if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
-                CreateMSG(GetMousePosition(), msgPool, 5000);
-            }
-
-            // Nivel de dificuldade
-
-            difficulty = (camMinX / 10000) + 1;
-
             // Atualizar player
             UpdatePlayer(&player, enemyPool, bulletsPool, grenadesPool, deltaTime, groundPool, envPropsPool, fxSoundPool, camMinX);
 
@@ -154,198 +261,272 @@ int main(void) {
             camMinX = (camMinX < camera.target.x - camera.offset.x ? camera.target.x - camera.offset.x : camMinX);
             UpdateClampedCameraPlayer(&camera, &player, deltaTime, screenWidth, screenHeight, &camMinX, &camMaxX);
 
-            for (int i = 0; i < maxCount; i++) {
-                if (i < maxNumBullets) {
-                    if (bulletsPool[i].isActive) 
-                        UpdateBullets(&bulletsPool[i], enemyPool, &player, msgPool, groundPool, envPropsPool, fxSoundPool, deltaTime, camMaxX);
-                }
-
-                if (i < maxNumGrenade) {
-                    if (grenadesPool[i].isActive)
-                        UpdateGrenades(&grenadesPool[i], enemyPool, &player, msgPool, groundPool, envPropsPool, particlePool, fxSoundPool, deltaTime);
-                }
-
-                if (i < maxNumGrounds) {
-                    if (groundPool[i].isActive) 
-                        UpdateGrounds(&player, &groundPool[i], deltaTime, camMinX);
-                    
-                }
-
-                if (i < maxNumEnvProps) {
-                    if (envPropsPool[i].isActive)
-                        UpdateEnvProps(&player, &envPropsPool[i], groundPool, deltaTime, camMinX);
-                }
-
-                if (i < maxNumEnemies) {
+                for (int i = 0; i < maxNumEnemies; i++) {
                     if (enemyPool[i].isAlive) 
                         UpdateEnemy(&enemyPool[i], &player, bulletsPool, deltaTime, groundPool, envPropsPool, fxSoundPool, camMinX);
                 }
 
-                if (i < maxNumParticles) {
+                for (int i = 0; i < maxNumBullets; i++) {
+                    if (bulletsPool[i].isActive) 
+                        UpdateBullets(&bulletsPool[i], enemyPool, &player, msgPool, groundPool, envPropsPool, fxSoundPool, deltaTime, camMaxX);
+                }
+
+                for (int i = 0; i < maxNumGrenade; i++) {
+                    if (grenadesPool[i].isActive)
+                        UpdateGrenades(&grenadesPool[i], enemyPool, &player, msgPool, groundPool, envPropsPool, particlePool, fxSoundPool, deltaTime);
+                }
+
+                for (int i = 0; i < maxNumGrounds; i++) {
+                    if (groundPool[i].isActive) 
+                        UpdateGrounds(&player, &groundPool[i], deltaTime, camMinX);
+                }
+
+                for (int i = 0; i < maxNumEnvProps; i++) {
+                    if (envPropsPool[i].isActive)
+                        UpdateEnvProps(&player, &envPropsPool[i], groundPool, deltaTime, camMinX);
+                }
+
+                for (int i = 0; i < maxNumParticles; i++) {
                     if (particlePool[i].isActive) 
                         UpdateParticles(&particlePool[i], deltaTime, camMinX);
                 }
 
-                if (i < maxNumMSGs) {
+                for (int i = 0; i < maxNumMSGs; i++) {
                     if (msgPool[i].isActive) 
                         UpdateMSGs(&msgPool[i], deltaTime);
                 }
 
-                if (i < numBackgroundRendered) {
+                for (int i = 0; i < numBackgroundRendered; i++) {
                     UpdateBackground(&player, nearBackgroundPool, i, foregroundAtlas, enemyPool, envPropsPool, groundPool, deltaTime, &numNearBackground, camMinX, &camMaxX);
                     UpdateBackground(&player, middleBackgroundPool, i, midgroundAtlas, enemyPool, envPropsPool, groundPool, deltaTime, &numMiddleBackground, camMinX, &camMaxX);
                     UpdateBackground(&player, farBackgroundPool, i, backgroundAtlas, enemyPool, envPropsPool, groundPool, deltaTime, &numFarBackground, camMinX, &camMaxX);
                 }
-            }
+            
 
         }
 
 
         // Draw cycle
-        BeginDrawing();
-
-            ClearBackground(GetColor(0x052c46ff));
-
-            BeginMode2D(camera);
-
-            ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-            ///////////////////////// OS BACKGROUNDS PRECISAM SER DESENHADOS ANTES DE QUALQUER COISA
-            ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
             
-            // Desenhar os backgrounds
-            for (int i = 0; i < numBackgroundRendered; i++) {
-                DrawTextureRec(farBackgroundPool[i].canvas.texture, (Rectangle) { 0, 0, (float)farBackgroundPool[i].canvas.texture.width, (float)-farBackgroundPool[i].canvas.texture.height },
-                (Vector2) { farBackgroundPool[i].position.x, farBackgroundPool[i].position.y }, WHITE);
-            }       
-            // Desenhar os middlegrounds
-            for (int i = 0; i < numBackgroundRendered; i++) {
-                DrawTextureRec(middleBackgroundPool[i].canvas.texture, (Rectangle) { 0, 0, (float)middleBackgroundPool[i].canvas.texture.width, (float)-middleBackgroundPool[i].canvas.texture.height },
-                (Vector2) { middleBackgroundPool[i].position.x, middleBackgroundPool[i].position.y }, WHITE);
-            }       
-            // Desenhar os foregrounds
-            for (int i = 0; i < numBackgroundRendered; i++) {
-                DrawTextureRec(nearBackgroundPool[i].canvas.texture, (Rectangle) { 0, 0, (float)nearBackgroundPool[i].canvas.texture.width, (float)-nearBackgroundPool[i].canvas.texture.height },
-                (Vector2) { nearBackgroundPool[i].position.x, nearBackgroundPool[i].position.y }, WHITE);
+            if (gameState == ACTIVE || gameState == PAUSE) {
+                BeginDrawing();
+                    ClearBackground(GetColor(0x052c46ff));
+                    BeginMode2D(camera);
+                        ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+                        ///////////////////////// OS BACKGROUNDS PRECISAM SER DESENHADOS ANTES DE QUALQUER COISA
+                        ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+                        
+                        // Desenhar os backgrounds
+                        for (int i = 0; i < numBackgroundRendered; i++) {
+                            DrawTextureRec(farBackgroundPool[i].canvas.texture, (Rectangle) { 0, 0, (float)farBackgroundPool[i].canvas.texture.width, (float)-farBackgroundPool[i].canvas.texture.height },
+                            (Vector2) { farBackgroundPool[i].position.x, farBackgroundPool[i].position.y }, WHITE);
+                        }       
+                        // Desenhar os middlegrounds
+                        for (int i = 0; i < numBackgroundRendered; i++) {
+                            DrawTextureRec(middleBackgroundPool[i].canvas.texture, (Rectangle) { 0, 0, (float)middleBackgroundPool[i].canvas.texture.width, (float)-middleBackgroundPool[i].canvas.texture.height },
+                            (Vector2) { middleBackgroundPool[i].position.x, middleBackgroundPool[i].position.y }, WHITE);
+                        }       
+                        // Desenhar os foregrounds
+                        for (int i = 0; i < numBackgroundRendered; i++) {
+                            DrawTextureRec(nearBackgroundPool[i].canvas.texture, (Rectangle) { 0, 0, (float)nearBackgroundPool[i].canvas.texture.width, (float)-nearBackgroundPool[i].canvas.texture.height },
+                            (Vector2) { nearBackgroundPool[i].position.x, nearBackgroundPool[i].position.y }, WHITE);
+                        }
+
+                        ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+                        ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+                        ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////   
+
+                        for (int i = 0; i < maxCount; i++) {
+                            if (i < maxNumGrounds) {
+                                if (groundPool[i].isActive)
+                                    if (!groundPool[i].isInvisible)
+                                        DrawRectangleRec(groundPool[i].rect, WHITE);
+                            }
+
+                            if (i < maxNumEnvProps) {
+                                if (envPropsPool[i].isActive) 
+                                    DrawTexturePro(envPropsAtlas, envPropsPool[i].frameRect, envPropsPool[i].drawableRect, (Vector2) {0, 0}, 0, WHITE);
+                            }
+
+                            if (i < maxNumEnemies) {
+                                if (enemyPool[i].isAlive) 
+                                    DrawEnemy(&enemyPool[i], enemyTex, true, false, true); //enemypool, enemytex, detecção, vida, colisão
+                            }
+
+                            if (i < maxNumBullets) {
+                                if (bulletsPool[i].isActive) 
+                                    DrawBullet(&bulletsPool[i], miscAtlas, false); //bulletspool, miscAtlas, colisão                        
+                            }
+
+                            if (i < maxNumGrenade) {
+                                if (grenadesPool[i].isActive)
+                                    DrawGrenade(&grenadesPool[i], miscAtlas, false); //grenadespool, miscAtlas, colisão      
+                            }
+
+                            if (i < maxNumParticles) {
+                                if (particlePool[i].isActive) 
+                                    DrawParticle(&particlePool[i], miscAtlas); //grenadespool, miscAtlas                        
+                            }
+
+                        }
+
+                        // Draw player
+                        DrawPlayer(&player, characterTexDiv, false);
+
+                        // Msgs acima de tudo
+                        for (int i = 0; i < maxNumMSGs; i++) {
+                            if (msgPool[i].isActive) 
+                                DrawMSG(&msgPool[i]); 
+
+                        }
+                    EndMode2D();
+
+                    //Chão
+                    //DrawRectangle(0, screenHeight-150, screenWidth, 150, LIGHTGRAY);
+                    
+                    DrawFPS(screenWidth-200, 0);
+
+                    // HUD
+                    // Timer
+                    char timer[10] = "";
+                    char temp[10] = "";
+                    int min = (int) (time/60);
+                    int sec = time - min*60;
+                    if (min < 10)
+                        strcat(timer, "0");
+                    sprintf(temp, "%d", min);
+                    strcat(timer, temp);
+                    strcat(timer, ":");
+                    if (sec < 10)
+                        strcat(timer, "0");
+                    sprintf(temp, "%d", sec);
+                    strcat(timer, temp);
+                    DrawText(timer, screenWidth/2 - 40*5/2, 20, 40, WHITE);
+                    
+                    // Player HP
+                    int HPBarWidth = 250;
+                    float percentHP = ((float) player.entity.currentHP / (float) player.entity.maxHP);
+                    int currentHPBarWidth = percentHP * HPBarWidth;
+                    DrawRectangle(7, 47, HPBarWidth, 15, DARKGRAY); 
+                    DrawRectangle(7, 47, currentHPBarWidth, 15, (percentHP < 0.33f ? RED : percentHP < 0.67f ? YELLOW : GREEN)); 
+                    DrawRectangleLines(7, 47, HPBarWidth, 15, WHITE); 
+                    
+                    // Player Ammo
+                    for (int i = 0; i < 3; i++) // aumentar a espessura da borda
+                        DrawRectangleLines(300+i, 7+i, 300-2*i, 80-2*i, WHITE); 
+                    
+                    DrawText("Ammo", 320, 17, 20, WHITE);
+                    char charAmmoPool[3] = "";
+                    char ammoText[3] = "";
+                    for (int i = 0; i < 2; i++) {
+                        if (player.entity.grenadeAmmo < (i+1)*10)
+                            strcat(ammoText, "0");
+                    }
+                    sprintf(charAmmoPool, "%d", player.entity.grenadeAmmo);
+                    strcat(ammoText, charAmmoPool);
+                    DrawText(ammoText, 320, 44, 20, WHITE);
+
+                
+                    // Player points
+                    char pointsText[15] = "";
+                    char charPointsPool[15] = "";
+                    for (int i = 0; i < 14; i++) {
+                        if (player.points < (i+1)*10)
+                            strcat(pointsText, "0");
+                    }
+                    sprintf(charPointsPool, "%ld", player.points);
+                    strcat(pointsText, charPointsPool);
+                    DrawText(pointsText, 7, 7, 30, WHITE);
+
+                    
+                    // Pause menu
+                    if (gameState == PAUSE) {
+                        if (IsKeyPressed(KEY_DOWN)) {
+                            currentOption++;
+                            PlaySoundMulti(fxSoundPool[FX_CHANGE_SELECTION]);
+                        } else if (IsKeyPressed(KEY_UP)) {
+                            PlaySoundMulti(fxSoundPool[FX_CHANGE_SELECTION]);
+                            currentOption--;
+                        }
+
+                        if (IsKeyPressed(KEY_ENTER)) {
+                            nextScreen = currentOption;
+                            PlaySoundMulti(fxSoundPool[FX_SELECTED]);
+                        }
+
+                        if (currentOption > 2) currentOption = 1;
+                        if (currentOption < 1) currentOption = 2;
+                        
+                        DrawRectangle(0, 0, screenWidth, screenHeight, ColorAlpha(BLACK, 0.7f));
+                        DrawText("PAUSED", screenWidth/2 - MeasureText("PAUSED", 80)/2, screenHeight/2 - 150, 80,WHITE);
+                        
+                        DrawText("Resume", screenWidth/2 - MeasureText("Resume", 40)/2, screenHeight/2 + 150, 40,(currentOption == 1 ? YELLOW : WHITE));
+                        DrawText("Exit to menu", screenWidth/2 - MeasureText("Exit to menu", 40)/2, screenHeight/2 + 200, 40,(currentOption == 2 ? YELLOW : WHITE));
+
+                        if (nextScreen == 1) {
+                            gameState = ACTIVE;
+                        } else if (nextScreen == 2) {
+                            gameState = MENU;
+                            goto Menu;
+                        }
+                    }
+                EndDrawing();
+            }
+            else if (gameState == GAMEOVER) {
+                BeginDrawing();
+                    ClearBackground(GetColor(0x052c46ff));
+                    int key = GetCharPressed();
+                    
+                    // Check if more characters have been pressed on the same frame
+                    while (key > 0){
+                        // NOTE: Only allow keys in range [32..125]
+                        if ((key >= 32) && (key <= 125) && (letterCount < 3))
+                        {
+                            received_name[letterCount] = (char)key;
+                            received_name[letterCount+1] ='\0';
+                            letterCount++;
+                        }
+                        key = GetCharPressed();  // Check next character in the queue
+                    }
+                    if (IsKeyPressed(KEY_BACKSPACE))
+                    {
+                        letterCount--;
+                        if (letterCount < 0) letterCount = 0;
+                        received_name[letterCount] = '\0';
+                    }
+                    DrawText(TextFormat("POINTS: %d", player.points), 600, 250, 20, RED);
+                    if(IsKeyPressed(KEY_ENTER) && letterCount==3){
+                        received_name[letterCount + 1] = '\0';
+                        received_points= player.points;
+                        if(received_points > atoi(scorePool[9].point)) { // Verifica se está no top 5
+                            UpdateScores(scorePool, received_name, received_points);
+                            WriteScore(fptr, fileName, scorePool);
+                        }
+                        gameState = SCORE;
+                        goto Menu;
+                    }
+
+                    DrawText(received_name, (screenWidth/2 - 100) + 5, screenHeight/2 + 8, 80, WHITE);
+                    DrawText(TextFormat("INPUT CHARS: %i/%i", letterCount, 3), 315, 250, 20, DARKGRAY);
+
+                    if (letterCount < 3)
+                    {
+                    // Draw blinking underscore char
+                        if (((framesCounter/20)%2) == 0){
+                            DrawText("_", (screenWidth/2 - 100) + 8 + MeasureText(received_name, 80), screenHeight/2 + 12, 80, WHITE);
+                        }
+                    }
+                    else DrawText("Press ENTER to confirm", 230, 330, 20, GRAY);
+                    
+                    if(letterCount > 0)DrawText("Press BACKSPACE to delete chars...", 230, 300, 20, GRAY);
+                EndDrawing();
             }
 
-            ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-            ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-            ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////   
-
-            for (int i = 0; i < maxCount; i++) {
-                if (i < maxNumGrounds) {
-                    if (groundPool[i].isActive)
-                        if (!groundPool[i].isInvisible)
-                            DrawRectangleRec(groundPool[i].rect, WHITE);
-                }
-
-                if (i < maxNumEnvProps) {
-                    if (envPropsPool[i].isActive) 
-                        DrawTexturePro(envPropsAtlas, envPropsPool[i].frameRect, envPropsPool[i].drawableRect, (Vector2) {0, 0}, 0, WHITE);
-                }
-
-                if (i < maxNumEnemies) {
-                    if (enemyPool[i].isAlive) 
-                        DrawEnemy(&enemyPool[i], enemyTex, false, false, false); //enemypool, enemytex, detecção, vida, colisão
-                }
-
-                if (i < maxNumBullets) {
-                    if (bulletsPool[i].isActive) 
-                        DrawBullet(&bulletsPool[i], miscAtlas, false); //bulletspool, miscAtlas, colisão                        
-                }
-
-                if (i < maxNumGrenade) {
-                    if (grenadesPool[i].isActive)
-                        DrawGrenade(&grenadesPool[i], miscAtlas, false); //grenadespool, miscAtlas, colisão      
-                }
-
-                if (i < maxNumParticles) {
-                    if (particlePool[i].isActive) 
-                        DrawParticle(&particlePool[i], miscAtlas); //grenadespool, miscAtlas                        
-                }
-
-                if (i < maxNumMSGs) {
-                    if (msgPool[i].isActive) 
-                        DrawMSG(&msgPool[i]); 
-                }
-
-            }
-
-            // Draw player
-            DrawPlayer(&player, characterTexDiv, false);
-
-        EndMode2D();
-
-        //Chão
-        //DrawRectangle(0, screenHeight-150, screenWidth, 150, LIGHTGRAY);
-        
-        DrawFPS(screenWidth-200, 0);
-
-        // HUD
-        // Timer
-        char timer[10] = "";
-        char temp[10] = "";
-        int min = (int) (time/60);
-        int sec = time - min*60;
-        if (min < 10)
-            strcat(timer, "0");
-        sprintf(temp, "%d", min);
-        strcat(timer, temp);
-        strcat(timer, ":");
-        if (sec < 10)
-            strcat(timer, "0");
-        sprintf(temp, "%d", sec);
-        strcat(timer, temp);
-        DrawText(timer, screenWidth/2 - 40*5/2, 20, 40, WHITE);
-        
-        // Player HP
-        int HPBarWidth = 250;
-        float percentHP = ((float) player.entity.currentHP / (float) player.entity.maxHP);
-        int currentHPBarWidth = percentHP * HPBarWidth;
-        DrawRectangle(7, 47, HPBarWidth, 15, DARKGRAY); 
-        DrawRectangle(7, 47, currentHPBarWidth, 15, (percentHP < 0.33f ? RED : percentHP < 0.67f ? YELLOW : GREEN)); 
-        DrawRectangleLines(7, 47, HPBarWidth, 15, WHITE); 
-        
-        // Player Ammo
-        for (int i = 0; i < 3; i++) // aumentar a espessura da borda
-            DrawRectangleLines(300+i, 7+i, 300-2*i, 80-2*i, WHITE); 
-        
-        DrawText("Ammo", 320, 17, 20, WHITE);
-        char charAmmoPool[3] = "";
-        char ammoText[3] = "";
-        for (int i = 0; i < 2; i++) {
-            if (player.entity.grenadeAmmo < (i+1)*10)
-                strcat(ammoText, "0");
-        }
-        sprintf(charAmmoPool, "%d", player.entity.grenadeAmmo);
-        strcat(ammoText, charAmmoPool);
-        DrawText(ammoText, 320, 44, 20, WHITE);
-
-       
-        // Player points
-        char pointsText[15] = "";
-        char charPointsPool[15] = "";
-        for (int i = 0; i < 14; i++) {
-            if (player.points < (i+1)*10)
-                strcat(pointsText, "0");
-        }
-        sprintf(charPointsPool, "%ld", player.points);
-        strcat(pointsText, charPointsPool);
-        DrawText(pointsText, 7, 7, 30, WHITE);
-
-
-        // Pause menu
-        if (gameState == PAUSE) {
-            DrawRectangle(0, 0, screenWidth, screenHeight, ColorAlpha(BLACK, 0.7f));
-            DrawText("PAUSED", screenWidth/2 - 190, screenHeight/2 - 45 - 100, 90, WHITE);
-            DrawText("Press ESC to resume", screenWidth/2 - 165, screenHeight/2 - 45 + 100, 30, WHITE);
-        }
-
-        EndDrawing();
 
 
     }
 
+Quit:
     // Unload
     UnloadTexture(backgroundAtlas);
     UnloadTexture(midgroundAtlas);
@@ -353,6 +534,7 @@ int main(void) {
     UnloadTexture(envPropsAtlas);
     UnloadTexture(characterTexDiv);
     UnloadTexture(miscAtlas);
+    UnloadTexture(logo);
     for (int i = 0; i < numBackgroundRendered; i++) {
         UnloadRenderTexture(farBackgroundPool[i].canvas);
         UnloadRenderTexture(nearBackgroundPool[i].canvas);
@@ -423,6 +605,7 @@ Player CreatePlayer (int maxHP, Vector2 position, int width, int height) {
     newPlayer.entity.type = PLAYER;
     newPlayer.points = 0;
 
+    newPlayer.entity.timeSinceDeath = 0;
     newPlayer.entity.width = width;
     newPlayer.entity.height = height;
     newPlayer.entity.upperAnimation.animationFrameSpeed = 0.08f;
@@ -476,6 +659,7 @@ void CreateEnemy(Enemy *enemyPool, enum ENEMY_CLASSES class, Vector2 position, i
             newEnemy->id = i;
             newEnemy->entity.type = ENEMY;
 
+            newEnemy->entity.timeSinceDeath = 0;
             newEnemy->entity.position = newEnemy->spawnLocation;
             newEnemy->entity.velocity.x = 0.0f;
             newEnemy->entity.velocity.y = 0.0f;
@@ -486,6 +670,8 @@ void CreateEnemy(Enemy *enemyPool, enum ENEMY_CLASSES class, Vector2 position, i
             newEnemy->entity.jumpSpeed = 250;
             newEnemy->entity.isGrounded = false;
             newEnemy->entity.eyesOffset = (Vector2) {55, 40};
+            newEnemy->entity.upPressed = 0;
+            newEnemy->entity.downPressed = 0;
 
             newEnemy->entity.width = width;
             newEnemy->entity.height = height;
@@ -526,16 +712,13 @@ void CreateEnemy(Enemy *enemyPool, enum ENEMY_CLASSES class, Vector2 position, i
             newEnemy->entity.BODY_DYING_NUM_FRAMES = 0;
 
             //Valores para range de ataque e de visão selecionados de forma arbitraria, atualizar posteriormente
+            newEnemy->entity.maxHP = 100;
+            newEnemy->entity.currentHP = newEnemy->entity.maxHP;
             switch (class){
                 case SWORDSMAN:
-                    newEnemy->viewDistance = 600 + (difficulty * 30);
+                    newEnemy->viewDistance = 600;
                     newEnemy->attackRange = 0;
-                    newEnemy->attackSpeed = 0.8f + (difficulty * 0.5); // Ataques por 
-                    newEnemy->entity.maxXSpeed = 200 + (difficulty * 30);
-                    newEnemy->entity.sprintSpeed = 800 + (difficulty * 30);
-                    newEnemy->entity.jumpSpeed = 250;
-                    newEnemy->entity.maxHP = 50 + (difficulty * 50);
-                    newEnemy->entity.currentHP = newEnemy->entity.maxHP;
+                    newEnemy->attackSpeed = 0.8f; // Ataques por segundo
                     newEnemy->entity.GRID[0] = PLAYER_GRID[0];
                     newEnemy->entity.GRID[1] = PLAYER_GRID[1];
                     newEnemy->entity.LEGS_IDLE_ROW = PLAYER_LEGS_IDLE_ROW;
@@ -553,14 +736,9 @@ void CreateEnemy(Enemy *enemyPool, enum ENEMY_CLASSES class, Vector2 position, i
                     break;
                 case ASSASSIN:
                     
-                    newEnemy->viewDistance = 600 + (difficulty * 30);
-                    newEnemy->attackRange = 15;
-                    newEnemy->attackSpeed = 0.8f + (difficulty * 0.5); // Ataques por 
-                    newEnemy->entity.maxXSpeed = 200 + (difficulty * 30);
-                    newEnemy->entity.sprintSpeed = 800 + (difficulty * 30);
-                    newEnemy->entity.jumpSpeed = 250;
-                    newEnemy->entity.maxHP = 50 + (difficulty * 50);
-                    newEnemy->entity.currentHP = newEnemy->entity.maxHP;
+                    newEnemy->viewDistance = 600;
+                    newEnemy->attackRange = 30;
+                    newEnemy->attackSpeed = 0.8f; // Ataques por segundo
                     newEnemy->entity.GRID[0] = ASSASSIN_GRID[0];
                     newEnemy->entity.GRID[1] = ASSASSIN_GRID[1];
                     newEnemy->entity.LEGS_IDLE_ROW = ASSASSIN_LEGS_IDLE_ROW;
@@ -577,14 +755,9 @@ void CreateEnemy(Enemy *enemyPool, enum ENEMY_CLASSES class, Vector2 position, i
                     newEnemy->entity.BODY_DYING_NUM_FRAMES = ASSASSIN_BODY_DYING_NUM_FRAMES;
                     break;
                 case GUNNER:
-                    newEnemy->viewDistance = 600 + (difficulty * 30);
-                    newEnemy->attackRange = 200 + (difficulty * 20);
-                    newEnemy->attackSpeed = 0.8f + (difficulty * 0.5); // Ataques por segundo
-                    newEnemy->entity.maxXSpeed = 200 + (difficulty * 30);
-                    newEnemy->entity.sprintSpeed = 800 + (difficulty * 30);
-                    newEnemy->entity.jumpSpeed = 250;
-                    newEnemy->entity.maxHP = 100 + (difficulty * 50);
-                    newEnemy->entity.currentHP = newEnemy->entity.maxHP;
+                    newEnemy->viewDistance = 600;
+                    newEnemy->attackRange = 200;
+                    newEnemy->attackSpeed = 0.8f; // Ataques por segundo
                     newEnemy->entity.GRID[0] = GUNNER_GRID[0];
                     newEnemy->entity.GRID[1] = GUNNER_GRID[1];
                     newEnemy->entity.LEGS_IDLE_ROW = GUNNER_LEGS_IDLE_ROW;
@@ -603,12 +776,7 @@ void CreateEnemy(Enemy *enemyPool, enum ENEMY_CLASSES class, Vector2 position, i
                 case SNIPERSHOOTER:
                     newEnemy->viewDistance = 1000;
                     newEnemy->attackRange = 1000;
-                    newEnemy->attackSpeed = 0.8f + (difficulty * 0.5); ; // Ataques por segundo
-                    newEnemy->entity.maxXSpeed = 200;
-                    newEnemy->entity.sprintSpeed = 800;
-                    newEnemy->entity.jumpSpeed = 250;
-                    newEnemy->entity.maxHP = 100;
-                    newEnemy->entity.currentHP = newEnemy->entity.maxHP;
+                    newEnemy->attackSpeed = 0.8f; // Ataques por segundo
                     newEnemy->entity.GRID[0] = PLAYER_GRID[0];
                     newEnemy->entity.GRID[1] = PLAYER_GRID[1];
                     newEnemy->entity.LEGS_IDLE_ROW = PLAYER_LEGS_IDLE_ROW;
@@ -628,11 +796,6 @@ void CreateEnemy(Enemy *enemyPool, enum ENEMY_CLASSES class, Vector2 position, i
                     newEnemy->viewDistance = 600;
                     newEnemy->attackRange = 200;
                     newEnemy->attackSpeed = 0.8f; // Ataques por segundo
-                    newEnemy->entity.maxXSpeed = 200;
-                    newEnemy->entity.sprintSpeed = 800;
-                    newEnemy->entity.jumpSpeed = 250;
-                    newEnemy->entity.maxHP = 100;
-                    newEnemy->entity.currentHP = newEnemy->entity.maxHP;
                     newEnemy->entity.GRID[0] = PLAYER_GRID[0];
                     newEnemy->entity.GRID[1] = PLAYER_GRID[1];
                     newEnemy->entity.LEGS_IDLE_ROW = PLAYER_LEGS_IDLE_ROW;
@@ -652,11 +815,6 @@ void CreateEnemy(Enemy *enemyPool, enum ENEMY_CLASSES class, Vector2 position, i
                     newEnemy->viewDistance = 600;
                     newEnemy->attackRange = 200;
                     newEnemy->attackSpeed = 0.8f; // Ataques por segundo
-                    newEnemy->entity.maxXSpeed = 200;
-                    newEnemy->entity.sprintSpeed = 800;
-                    newEnemy->entity.jumpSpeed = 250;
-                    newEnemy->entity.maxHP = 100;
-                    newEnemy->entity.currentHP = newEnemy->entity.maxHP;
                     newEnemy->entity.GRID[0] = PLAYER_GRID[0];
                     newEnemy->entity.GRID[1] = PLAYER_GRID[1];
                     newEnemy->entity.LEGS_IDLE_ROW = PLAYER_LEGS_IDLE_ROW;
@@ -675,12 +833,7 @@ void CreateEnemy(Enemy *enemyPool, enum ENEMY_CLASSES class, Vector2 position, i
                 case BOSS:
                     newEnemy->viewDistance = 600;
                     newEnemy->attackRange = 200;
-                    newEnemy->attackSpeed = 1.0f; // Ataques por segundo
-                    newEnemy->entity.maxXSpeed = 500 + (difficulty * 30);
-                    newEnemy->entity.sprintSpeed = 1000 + (difficulty * 50);
-                    newEnemy->entity.jumpSpeed = 250;
-                    newEnemy->entity.maxHP = 500 + (difficulty * 500);
-                    newEnemy->entity.currentHP = newEnemy->entity.maxHP;
+                    newEnemy->attackSpeed = 0.8f; // Ataques por segundo
                     newEnemy->entity.GRID[0] = PLAYER_GRID[0];
                     newEnemy->entity.GRID[1] = PLAYER_GRID[1];
                     newEnemy->entity.LEGS_IDLE_ROW = PLAYER_LEGS_IDLE_ROW;
@@ -1072,94 +1225,96 @@ void UpdatePlayer(Player *player, Enemy *enemy, Bullet *bulletPool, Grenade *gre
     player->entity.lowerAnimation.timeSinceLastFrame += delta;
     player->entity.upperAnimation.timeSinceLastFrame += delta;
 
-    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    // Handler de input do player                                     ///////////////////////////////////////////////////////////////////////
-    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    if (player->entity.lowerAnimation.currentAnimationState != DYING) {//} && player->entity.animation.currentAnimationState != HURT && player->entity.animation.currentAnimationState != ATTACKING) {
-        
-        // Registro das teclas "up" e "down". A tecla "up" tem prioridade sobre a "down" por convenção
-        player->entity.upPressed = false;
-        player->entity.downPressed = false;
-        if (IsKeyDown(KEY_UP)) {
-            player->entity.upPressed = true;
-        } else if (IsKeyDown(KEY_DOWN)) {
-            player->entity.downPressed = true;
-        }
-
-        if (IsKeyDown(KEY_LEFT)) {
-            player->entity.velocity.x -= player->entity.maxXSpeed;
+    if (player->entity.lowerAnimation.currentAnimationState != DEAD ) {
+        /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+        // Handler de input do player                                     ///////////////////////////////////////////////////////////////////////
+        /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+        if (player->entity.lowerAnimation.currentAnimationState != DYING ) {//} && player->entity.animation.currentAnimationState != HURT && player->entity.animation.currentAnimationState != ATTACKING) {
             
-        } else if (IsKeyDown(KEY_RIGHT)) {
-            player->entity.velocity.x += player->entity.maxXSpeed;
-        } else {
-            player->entity.velocity.x = 0;
-        }
+            // Registro das teclas "up" e "down". A tecla "up" tem prioridade sobre a "down" por convenção
+            player->entity.upPressed = false;
+            player->entity.downPressed = false;
+            if (IsKeyDown(KEY_UP)) {
+                player->entity.upPressed = true;
+            } else if (IsKeyDown(KEY_DOWN)) {
+                player->entity.downPressed = true;
+            }
 
-        if (IsKeyDown(KEY_SPACE) && player->entity.isGrounded) 
-        {
-            player->entity.velocity.y = -2*player->entity.jumpSpeed;
-            player->entity.isGrounded = false;
-        }
+            if (IsKeyDown(KEY_LEFT)) {
+                player->entity.velocity.x -= player->entity.maxXSpeed;
+                
+            } else if (IsKeyDown(KEY_RIGHT)) {
+                player->entity.velocity.x += player->entity.maxXSpeed;
+            } else {
+                player->entity.velocity.x = 0;
+            }
 
-        if (IsKeyPressed(KEY_T)) {
-            if (player->entity.grenadeAmmo > 0) {
-                if (player->entity.upperAnimation.currentAnimationState != THROWING || (player->entity.upperAnimation.currentAnimationState == THROWING && player->entity.upperAnimation.currentAnimationFrame > 3)) {
-                    CreateGrenade(&(player->entity), grenadePool, PLAYER);
-                    PlaySoundMulti(soundPool[FX_GRENADE_LAUNCH]);
-                    player->entity.grenadeAmmo--;
-                    player->entity.upperAnimation.currentAnimationState = THROWING;
+            if (IsKeyDown(KEY_SPACE) && player->entity.isGrounded) 
+            {
+                player->entity.velocity.y = -2*player->entity.jumpSpeed;
+                player->entity.isGrounded = false;
+            }
+
+            if (IsKeyPressed(KEY_T)) {
+                if (player->entity.grenadeAmmo > 0) {
+                    if (player->entity.upperAnimation.currentAnimationState != THROWING || (player->entity.upperAnimation.currentAnimationState == THROWING && player->entity.upperAnimation.currentAnimationFrame > 3)) {
+                        CreateGrenade(&(player->entity), grenadePool, PLAYER);
+                        PlaySoundMulti(soundPool[FX_GRENADE_LAUNCH]);
+                        player->entity.grenadeAmmo--;
+                        player->entity.upperAnimation.currentAnimationState = THROWING;
+                        player->entity.upperAnimation.currentAnimationFrame = 0;
+                        player->entity.upperAnimation.timeSinceLastFrame = 0;
+                    }
+                }
+            }
+
+            if (IsKeyPressed(KEY_R)) {
+                if (player->entity.upperAnimation.currentAnimationState != ATTACKING || (player->entity.upperAnimation.currentAnimationState == ATTACKING && player->entity.upperAnimation.currentAnimationFrame > 1)) {
+                    CreateBullet(&(player->entity), bulletPool, MAGNUM, PLAYER);
+                    PlaySoundMulti(soundPool[FX_MAGNUM]);
+                    player->entity.upperAnimation.currentAnimationState = ATTACKING;
                     player->entity.upperAnimation.currentAnimationFrame = 0;
                     player->entity.upperAnimation.timeSinceLastFrame = 0;
                 }
+                //player->entity.animation.currentAnimationState = ATTACKING;
+                //player->entity.animation.currentAnimationFrame = 0;
+                //player->entity.animation.timeSinceLastFrame = 0;
+                //if (player->entity.isGrounded)
+                //    player->entity.velocity.x = 0;
             }
         }
 
-        if (IsKeyPressed(KEY_R)) {
-            if (player->entity.upperAnimation.currentAnimationState != ATTACKING || (player->entity.upperAnimation.currentAnimationState == ATTACKING && player->entity.upperAnimation.currentAnimationFrame > 1)) {
-                CreateBullet(&(player->entity), bulletPool, MAGNUM, PLAYER);
-                PlaySoundMulti(soundPool[FX_MAGNUM]);
-                player->entity.upperAnimation.currentAnimationState = ATTACKING;
-                player->entity.upperAnimation.currentAnimationFrame = 0;
-                player->entity.upperAnimation.timeSinceLastFrame = 0;
-            }
-            //player->entity.animation.currentAnimationState = ATTACKING;
-            //player->entity.animation.currentAnimationFrame = 0;
-            //player->entity.animation.timeSinceLastFrame = 0;
-            //if (player->entity.isGrounded)
-            //    player->entity.velocity.x = 0;
+        /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+        // Handler de colisão do player                                   ///////////////////////////////////////////////////////////////////////
+        /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+        EntityCollisionHandler(&(player->entity), ground, envProps, soundPool, delta);
+
+        /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+        // Handler de física e gráfico do player                          ///////////////////////////////////////////////////////////////////////
+        /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+        PhysicsAndGraphicsHandlers(&(player->entity), delta, currentLowerState, currentUpperState, PLAYER, BOSS);
+
+        // Limitar posição do player de acordo com o avanço da câmera
+        if (player->entity.position.x < minX + player->entity.width/2) {
+            player->entity.position.x = minX + player->entity.width/2;
+        } 
+
+        if (player->entity.position.y < player->entity.height/2) {
+            player->entity.position.y = player->entity.height/2;
+            player->entity.velocity.y = 0;
         }
-    }
 
-    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    // Handler de colisão do player                                   ///////////////////////////////////////////////////////////////////////
-    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    EntityCollisionHandler(&(player->entity), ground, envProps, soundPool, delta);
-
-    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    // Handler de física e gráfico do player                          ///////////////////////////////////////////////////////////////////////
-    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    PhysicsAndGraphicsHandlers(&(player->entity), delta, currentLowerState, currentUpperState, PLAYER, BOSS);
-
-    // Limitar posição do player de acordo com o avanço da câmera
-    if (player->entity.position.x < minX + player->entity.width/2) {
-        player->entity.position.x = minX + player->entity.width/2;
-    } 
-
-    if (player->entity.position.y < player->entity.height/2) {
-        player->entity.position.y = player->entity.height/2;
-        player->entity.velocity.y = 0;
-    }
-
-    // Atualizar caixa de colisão e retângulo de desenho
-    player->entity.drawableRect = (Rectangle) {player->entity.position.x, player->entity.position.y, (int)(player->entity.width * player->entity.characterWidthScale), (int)(player->entity.height * player->entity.characterHeightScale)};
-    player->entity.collisionBox = (Rectangle) {player->entity.position.x  - player->entity.width/2 + (player->entity.lowerAnimation.isFacingRight == -1 ? 0.43f : 0.23f) * player->entity.width, player->entity.position.y - player->entity.height/2, player->entity.width * 0.35f, player->entity.height};
-    player->entity.collisionHead = (Circle) {(Vector2){player->entity.position.x - player->entity.lowerAnimation.isFacingRight * 0.1f * player->entity.width, player->entity.position.y - 0.15f * player->entity.height}, player->entity.width * 0.2f};
-    
-    // Caixa se morto
-    if (player->entity.lowerAnimation.currentAnimationState == DYING && currentLowerState != DYING)
-        PlaySoundMulti(soundPool[FX_DYING]);
-    if (player->entity.lowerAnimation.currentAnimationState == DYING) {
-        player->entity.collisionBox = (Rectangle) {player->entity.position.x  - player->entity.width + (player->entity.lowerAnimation.isFacingRight == -1 ? 0.43f : 0.23f) * player->entity.width, player->entity.position.y, player->entity.width, player->entity.height/2};
+        // Atualizar caixa de colisão e retângulo de desenho
+        player->entity.drawableRect = (Rectangle) {player->entity.position.x, player->entity.position.y, (int)(player->entity.width * player->entity.characterWidthScale), (int)(player->entity.height * player->entity.characterHeightScale)};
+        player->entity.collisionBox = (Rectangle) {player->entity.position.x  - player->entity.width/2 + (player->entity.lowerAnimation.isFacingRight == -1 ? 0.43f : 0.23f) * player->entity.width, player->entity.position.y - player->entity.height/2, player->entity.width * 0.35f, player->entity.height};
+        player->entity.collisionHead = (Circle) {(Vector2){player->entity.position.x - player->entity.lowerAnimation.isFacingRight * 0.1f * player->entity.width, player->entity.position.y - 0.15f * player->entity.height}, player->entity.width * 0.2f};
+        
+        // Caixa se morto
+        if (player->entity.lowerAnimation.currentAnimationState == DYING && currentLowerState != DYING)
+            PlaySoundMulti(soundPool[FX_DYING]);
+        if (player->entity.lowerAnimation.currentAnimationState == DYING) {
+            player->entity.collisionBox = (Rectangle) {player->entity.position.x  - player->entity.width + (player->entity.lowerAnimation.isFacingRight == -1 ? 0.43f : 0.23f) * player->entity.width, player->entity.position.y, player->entity.width, player->entity.height/2};
+        }
     }
 }
 
@@ -1176,7 +1331,7 @@ void UpdateEnemy(Enemy *enemy, Player *player, Bullet *bulletPool, float delta, 
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     // Handler de comportamento do enemy                              ///////////////////////////////////////////////////////////////////////
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    SteeringBehavior(enemy, player, bulletPool, soundPool, delta);
+    SteeringBehavior(enemy, player, &(player->entity), bulletPool, soundPool, delta, enemy->class);
     
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     // Handler de colisão do enemy                                    ///////////////////////////////////////////////////////////////////////
@@ -1197,6 +1352,10 @@ void UpdateEnemy(Enemy *enemy, Player *player, Bullet *bulletPool, float delta, 
         PlaySoundMulti(soundPool[FX_DYING]);
     if (eEnt->lowerAnimation.currentAnimationState == DYING) {
         eEnt->collisionBox = (Rectangle) {eEnt->position.x  - eEnt->width + (eEnt->lowerAnimation.isFacingRight == -1 ? 0.43f : 0.23f) * eEnt->width, eEnt->position.y, eEnt->width, eEnt->height/2};
+        eEnt->timeSinceDeath+=delta;
+        if (eEnt->timeSinceDeath >= corpseTime) {
+            enemy->isAlive = false;
+        }
     }
 }
      
@@ -1238,8 +1397,8 @@ void UpdateBullets(Bullet *bullet, Enemy *enemy, Player *player, MSGSystem *msgS
                 if (currentEnemy->entity.lowerAnimation.currentAnimationState != DYING) {
                     if (CheckCollisionRecs(currentEnemy->entity.collisionBox, bullet->collisionBox) || CheckCollisionCircleRec(currentEnemy->entity.collisionHead.center, currentEnemy->entity.collisionHead.radius, bullet->collisionBox)) {
                         bullet->isActive = false;
-                        PlaySoundMulti(soundPool[FX_HURT]);
-                        HurtEntity(&(currentEnemy->entity), *bullet, 50); // TODO damage
+                        currentEnemy->entity.lowerAnimation.isFacingRight = -bullet->direction.x;
+                        HurtEntity(&(currentEnemy->entity), soundPool, 50); // TODO damage
                         if (currentEnemy->entity.currentHP <= 0) {
                             KillEnemy(player, currentEnemy, msgSystem);
                         }
@@ -1253,8 +1412,7 @@ void UpdateBullets(Bullet *bullet, Enemy *enemy, Player *player, MSGSystem *msgS
     if (bullet->srcEntity == ENEMY) {
         if (CheckCollisionRecs(player->entity.collisionBox, bullet->collisionBox) || CheckCollisionCircleRec(player->entity.collisionHead.center, player->entity.collisionHead.radius, bullet->collisionBox)) {
             bullet->isActive = false;
-            player->entity.currentHP -= 20;
-            PlaySoundMulti(soundPool[FX_HURT]);
+            HurtEntity(&(player->entity), soundPool, 20); // TODO damage
             // TODO Causa dano ao player
             // TODO Criar animação de sangue
         }

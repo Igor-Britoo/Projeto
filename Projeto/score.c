@@ -19,7 +19,7 @@ int main(){
     scanf("%d",&choice);
 
     if (choice == 1) {
-    fptr = fopen ("resources/Text/teste.txt","w");
+    fptr = fopen ("resources/Text/teste2.txt","w");
         if(fptr == NULL)
         {
             printf("Error!");   
@@ -34,7 +34,7 @@ int main(){
     }
 
     if (choice == 2) {
-        if ((fptr = fopen ("resources/Text/teste.txt","r")) == NULL){
+        if ((fptr = fopen ("resources/Text/teste2.txt","r")) == NULL){
             printf("Error! opening file");
             exit(1);
         }

@@ -1,17 +1,26 @@
-#include "raylib.h"
 #include <stdlib.h>     
 #include <string.h>     
 #include <stdio.h>
+#include <sys/stat.h>
 
 typedef struct score {
-    char name[3];
+    char name[10];
     char point[15];
 } Score;
 
-void ReadScore (FILE *fptr, Score *scorePool) {
+int CheckIfFileExists(const char* filename){
+    struct stat buffer;
+    int exist = stat(filename,&buffer);
+    if(exist == 0)
+        return 1;
+    else  
+        return 0;
+}
+
+void ReadScore (FILE *fptr, char* file, Score *scorePool) {
     char temp[100];
     
-    if ((fptr = fopen ("resources/Text/teste.txt","r")) == NULL) {
+    if ((fptr = fopen (file,"r")) == NULL) {
         printf("Error! opening file");
         exit(1);
     }
@@ -20,29 +29,25 @@ void ReadScore (FILE *fptr, Score *scorePool) {
     int init_size = strlen(temp);
     char *ptr = strtok(temp, ">");
     int i = 0;
-    while(ptr != NULL)
-    {
+    while(ptr != NULL) {
         printf("%s\n", ptr);
         Score *curScore = scorePool + i;
         if (i % 2 == 0)
             strcpy(curScore->name, ptr);
         else
             strcpy(curScore->point, ptr);
-            //curScore->point = atoi(ptr);
         i++;
         ptr = strtok(NULL, ">");
     }
 
 }
 
-
-void WriteScore(FILE *fptr, Score *scorePool) {
+void WriteScore(FILE *fptr, char* file, Score *scorePool) {
     char temp[100];
     char delim[] = ">";
     strcpy(temp, "");
 
-    fptr = fopen ("resources/Text/teste.txt","w");
-    if(fptr == NULL) {
+    if ((fptr = fopen (file,"w")) == NULL) {
         printf("Error!");   
         exit(1);             
     }
@@ -58,67 +63,35 @@ void WriteScore(FILE *fptr, Score *scorePool) {
     fclose(fptr);
 }
 
+void UpdateScores(Score *scorePool, char* name, long* points) {
+    char pointHolder[100];
+    char nameHolder[100];
+    char pointHolder2[100];
+    char nameHolder2[100];
+    char strPoints[15];
+    sprintf(strPoints, "%ld", points); //strPoints com a pontuação em string
 
-int main(void) {
-    // Initialization
-    //--------------------------------------------------------------------------------------
-    const int screenWidth = 800;
-    const int screenHeight = 450;
+    
+    for (int i = 0; i < 10; i+=2) {
+        if (atoi(scorePool[i+1].point) < points) {
+            //Início da permuta
+            strcpy(nameHolder, scorePool[i].name);
+            strcpy(pointHolder, scorePool[i+1].point);
+            strcpy(scorePool[i].name, name);
+            strcpy(scorePool[i+1].point, strPoints);
 
-    InitWindow(screenWidth, screenHeight, "raylib [core] example - mouse input");
-    SetTargetFPS(60);               // Set our game to run at 60 frames-per-second
-    //---------------------------------------------------------------------------------------
+            for (int j = i+2; j < 10; j+=2) {
+                strcpy(nameHolder2, scorePool[j].name);
+                strcpy(pointHolder2, scorePool[j+1].point);
 
-    FILE *fptr;
-    char data[100];
-    char *name;
-    int choice = 0;
-    Score *scorePool = (Score *)malloc(10*sizeof(Score));
+                strcpy(scorePool[j].name, nameHolder);
+                strcpy(scorePool[j+1].point, pointHolder);
 
-    strcpy(scorePool[0].name,"ABC");
-    strcpy(scorePool[1].point,"123");
-    strcpy(scorePool[2].name,"DEF");
-    strcpy(scorePool[3].point,"234");
-    strcpy(scorePool[4].name,"GHI");
-    strcpy(scorePool[5].point,"345");
-    strcpy(scorePool[6].name,"JKL");
-    strcpy(scorePool[7].point,"456");
-    strcpy(scorePool[8].name,"MNO");
-    strcpy(scorePool[9].point,"567");
-
-    WriteScore(fptr, scorePool);
-
-    // Main game loop
-    while (!WindowShouldClose())    // Detect window close button or ESC key
-    {
-        // Update
-        //----------------------------------------------------------------------------------
-        ReadScore (fptr, scorePool);
-        //----------------------------------------------------------------------------------
-
-        // Draw
-        //----------------------------------------------------------------------------------
-        BeginDrawing();
-
-            ClearBackground(RAYWHITE);
-            // Imprimir ranking
-            
-            int pos = 0;
-            for (int i = 0; i < 10; i+=2) {
-                pos++;
-                DrawText(TextFormat("%01d", pos), 0, pos*25, 20, RED);
-                DrawText(scorePool[i].name, 23, pos*25, 20, BLUE);
-                DrawText(scorePool[i+1].point, 20 + 100, pos*25, 20, BLUE);
+                strcpy(nameHolder, nameHolder2);
+                strcpy(pointHolder, pointHolder2);
+                
             }
-
-        EndDrawing();
-        //----------------------------------------------------------------------------------
+            return;
+        }
     }
-
-    // De-Initialization
-    //--------------------------------------------------------------------------------------
-    CloseWindow();        // Close window and OpenGL context
-    //--------------------------------------------------------------------------------------
-
-    return 0;
 }
