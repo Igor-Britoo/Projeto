@@ -46,7 +46,6 @@ int main(void) {
 
     // Controle de fluxo do jogo
     float time = 0;
-    int difficulty = 0;
 
     // Player Init
     Player player = CreatePlayer(100, (Vector2){122, 200},122, 122);
@@ -143,6 +142,10 @@ int main(void) {
             if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
                 CreateMSG(GetMousePosition(), msgPool, 5000);
             }
+
+            // Nivel de dificuldade
+
+            difficulty = (camMinX / 10000) + 1;
 
             // Atualizar player
             UpdatePlayer(&player, enemyPool, bulletsPool, grenadesPool, deltaTime, groundPool, envPropsPool, fxSoundPool, camMinX);
@@ -523,13 +526,16 @@ void CreateEnemy(Enemy *enemyPool, enum ENEMY_CLASSES class, Vector2 position, i
             newEnemy->entity.BODY_DYING_NUM_FRAMES = 0;
 
             //Valores para range de ataque e de visão selecionados de forma arbitraria, atualizar posteriormente
-            newEnemy->entity.maxHP = 100;
-            newEnemy->entity.currentHP = newEnemy->entity.maxHP;
             switch (class){
                 case SWORDSMAN:
-                    newEnemy->viewDistance = 600;
+                    newEnemy->viewDistance = 600 + (difficulty * 30);
                     newEnemy->attackRange = 0;
-                    newEnemy->attackSpeed = 0.8f; // Ataques por segundo
+                    newEnemy->attackSpeed = 0.8f + (difficulty * 0.5); // Ataques por 
+                    newEnemy->entity.maxXSpeed = 200 + (difficulty * 30);
+                    newEnemy->entity.sprintSpeed = 800 + (difficulty * 30);
+                    newEnemy->entity.jumpSpeed = 250;
+                    newEnemy->entity.maxHP = 50 + (difficulty * 50);
+                    newEnemy->entity.currentHP = newEnemy->entity.maxHP;
                     newEnemy->entity.GRID[0] = PLAYER_GRID[0];
                     newEnemy->entity.GRID[1] = PLAYER_GRID[1];
                     newEnemy->entity.LEGS_IDLE_ROW = PLAYER_LEGS_IDLE_ROW;
@@ -547,9 +553,14 @@ void CreateEnemy(Enemy *enemyPool, enum ENEMY_CLASSES class, Vector2 position, i
                     break;
                 case ASSASSIN:
                     
-                    newEnemy->viewDistance = 600;
-                    newEnemy->attackRange = 30;
-                    newEnemy->attackSpeed = 0.8f; // Ataques por segundo
+                    newEnemy->viewDistance = 600 + (difficulty * 30);
+                    newEnemy->attackRange = 15;
+                    newEnemy->attackSpeed = 0.8f + (difficulty * 0.5); // Ataques por 
+                    newEnemy->entity.maxXSpeed = 200 + (difficulty * 30);
+                    newEnemy->entity.sprintSpeed = 800 + (difficulty * 30);
+                    newEnemy->entity.jumpSpeed = 250;
+                    newEnemy->entity.maxHP = 50 + (difficulty * 50);
+                    newEnemy->entity.currentHP = newEnemy->entity.maxHP;
                     newEnemy->entity.GRID[0] = ASSASSIN_GRID[0];
                     newEnemy->entity.GRID[1] = ASSASSIN_GRID[1];
                     newEnemy->entity.LEGS_IDLE_ROW = ASSASSIN_LEGS_IDLE_ROW;
@@ -566,9 +577,14 @@ void CreateEnemy(Enemy *enemyPool, enum ENEMY_CLASSES class, Vector2 position, i
                     newEnemy->entity.BODY_DYING_NUM_FRAMES = ASSASSIN_BODY_DYING_NUM_FRAMES;
                     break;
                 case GUNNER:
-                    newEnemy->viewDistance = 600;
-                    newEnemy->attackRange = 200;
-                    newEnemy->attackSpeed = 0.8f; // Ataques por segundo
+                    newEnemy->viewDistance = 600 + (difficulty * 30);
+                    newEnemy->attackRange = 200 + (difficulty * 20);
+                    newEnemy->attackSpeed = 0.8f + (difficulty * 0.5); // Ataques por segundo
+                    newEnemy->entity.maxXSpeed = 200 + (difficulty * 30);
+                    newEnemy->entity.sprintSpeed = 800 + (difficulty * 30);
+                    newEnemy->entity.jumpSpeed = 250;
+                    newEnemy->entity.maxHP = 100 + (difficulty * 50);
+                    newEnemy->entity.currentHP = newEnemy->entity.maxHP;
                     newEnemy->entity.GRID[0] = GUNNER_GRID[0];
                     newEnemy->entity.GRID[1] = GUNNER_GRID[1];
                     newEnemy->entity.LEGS_IDLE_ROW = GUNNER_LEGS_IDLE_ROW;
@@ -587,7 +603,12 @@ void CreateEnemy(Enemy *enemyPool, enum ENEMY_CLASSES class, Vector2 position, i
                 case SNIPERSHOOTER:
                     newEnemy->viewDistance = 1000;
                     newEnemy->attackRange = 1000;
-                    newEnemy->attackSpeed = 0.8f; // Ataques por segundo
+                    newEnemy->attackSpeed = 0.8f + (difficulty * 0.5); ; // Ataques por segundo
+                    newEnemy->entity.maxXSpeed = 200;
+                    newEnemy->entity.sprintSpeed = 800;
+                    newEnemy->entity.jumpSpeed = 250;
+                    newEnemy->entity.maxHP = 100;
+                    newEnemy->entity.currentHP = newEnemy->entity.maxHP;
                     newEnemy->entity.GRID[0] = PLAYER_GRID[0];
                     newEnemy->entity.GRID[1] = PLAYER_GRID[1];
                     newEnemy->entity.LEGS_IDLE_ROW = PLAYER_LEGS_IDLE_ROW;
@@ -607,6 +628,11 @@ void CreateEnemy(Enemy *enemyPool, enum ENEMY_CLASSES class, Vector2 position, i
                     newEnemy->viewDistance = 600;
                     newEnemy->attackRange = 200;
                     newEnemy->attackSpeed = 0.8f; // Ataques por segundo
+                    newEnemy->entity.maxXSpeed = 200;
+                    newEnemy->entity.sprintSpeed = 800;
+                    newEnemy->entity.jumpSpeed = 250;
+                    newEnemy->entity.maxHP = 100;
+                    newEnemy->entity.currentHP = newEnemy->entity.maxHP;
                     newEnemy->entity.GRID[0] = PLAYER_GRID[0];
                     newEnemy->entity.GRID[1] = PLAYER_GRID[1];
                     newEnemy->entity.LEGS_IDLE_ROW = PLAYER_LEGS_IDLE_ROW;
@@ -626,6 +652,11 @@ void CreateEnemy(Enemy *enemyPool, enum ENEMY_CLASSES class, Vector2 position, i
                     newEnemy->viewDistance = 600;
                     newEnemy->attackRange = 200;
                     newEnemy->attackSpeed = 0.8f; // Ataques por segundo
+                    newEnemy->entity.maxXSpeed = 200;
+                    newEnemy->entity.sprintSpeed = 800;
+                    newEnemy->entity.jumpSpeed = 250;
+                    newEnemy->entity.maxHP = 100;
+                    newEnemy->entity.currentHP = newEnemy->entity.maxHP;
                     newEnemy->entity.GRID[0] = PLAYER_GRID[0];
                     newEnemy->entity.GRID[1] = PLAYER_GRID[1];
                     newEnemy->entity.LEGS_IDLE_ROW = PLAYER_LEGS_IDLE_ROW;
@@ -644,7 +675,12 @@ void CreateEnemy(Enemy *enemyPool, enum ENEMY_CLASSES class, Vector2 position, i
                 case BOSS:
                     newEnemy->viewDistance = 600;
                     newEnemy->attackRange = 200;
-                    newEnemy->attackSpeed = 0.8f; // Ataques por segundo
+                    newEnemy->attackSpeed = 1.0f; // Ataques por segundo
+                    newEnemy->entity.maxXSpeed = 500 + (difficulty * 30);
+                    newEnemy->entity.sprintSpeed = 1000 + (difficulty * 50);
+                    newEnemy->entity.jumpSpeed = 250;
+                    newEnemy->entity.maxHP = 500 + (difficulty * 500);
+                    newEnemy->entity.currentHP = newEnemy->entity.maxHP;
                     newEnemy->entity.GRID[0] = PLAYER_GRID[0];
                     newEnemy->entity.GRID[1] = PLAYER_GRID[1];
                     newEnemy->entity.LEGS_IDLE_ROW = PLAYER_LEGS_IDLE_ROW;

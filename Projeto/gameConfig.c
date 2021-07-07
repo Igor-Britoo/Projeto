@@ -42,6 +42,9 @@ const int screenHeight = 1080;
 const char gameName[30] = "Project N30-N";
 bool isFullscreen = true;
 
+//variavel do controle de Dificuldade
+int difficulty = 0;
+
 // Structs
 typedef struct circle {
     Vector2 center;
@@ -810,9 +813,12 @@ void PopulateChunk(int chunkId, EnvProps *envPropsPool, Ground *groundPool, Enem
         int obType = GetRandomValue(METAL_CRATE, GARBAGE_BAG2);
         CreateEnvProp(envPropsPool, groundPool, obType, (Vector2) {chunkId*screenWidth + GetRandomValue(5, 10) + objAdditions*200, screenHeight-150-200}, 200, 200);
     }
-    if (GetRandomValue(1,100) <= enemyProb) {
-        enemyAdditions++;
-        int enClass = GetRandomValue(ASSASSIN, GUNNER);
-        CreateEnemy(enemyPool, enClass, (Vector2) {chunkId*screenWidth + GetRandomValue(50, 100) + enemyAdditions*3, screenHeight-250}, 122, 122);
+
+    for(int i = 0; i < (difficulty+1); i++){
+        if (GetRandomValue(1,100) <= enemyProb) {
+            enemyAdditions++;
+            int enClass = GetRandomValue(ASSASSIN, GUNNER);
+            CreateEnemy(enemyPool, enClass, (Vector2) {chunkId*screenWidth + GetRandomValue(50, 100) + enemyAdditions*3, screenHeight-1080}, 122, 122);
+        }
     }
 }
