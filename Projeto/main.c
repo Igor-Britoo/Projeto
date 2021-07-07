@@ -26,8 +26,22 @@ int main(void) {
     enemyTex[BOSS] = LoadTexture("resources/Atlas/hero_atlas_div.png");
 
     InitAudioDevice();              // Initialize audio device
+    SetMasterVolume(0.4f);
     Music ambience = LoadMusicStream("resources/Audio/ambience.mp3");
-    SetMasterVolume(0.3f);
+    Sound *fxSoundPool = (Sound *)malloc(8*sizeof(Sound));
+    fxSoundPool[FX_MAGNUM] = LoadSound("resources/Audio/magnumShot.ogg"); 
+    fxSoundPool[FX_ENTITY_LANDING] = LoadSound("resources/Audio/entityLanding.ogg"); 
+    fxSoundPool[FX_GRENADE_LAUNCH] = LoadSound("resources/Audio/grenadeLaunch.ogg"); 
+    fxSoundPool[FX_GRENADE_BOUNCING] = LoadSound("resources/Audio/grenadeBouncing.ogg"); 
+    fxSoundPool[FX_GRENADE_EXPLOSION] = LoadSound("resources/Audio/grenadeExplosion.ogg"); 
+    fxSoundPool[FX_HURT] = LoadSound("resources/Audio/hurt.ogg"); 
+    fxSoundPool[FX_DYING] = LoadSound("resources/Audio/dying.ogg"); 
+
+    SetSoundVolume(fxSoundPool[FX_ENTITY_LANDING], 1.5f);
+    SetSoundVolume(fxSoundPool[FX_GRENADE_EXPLOSION], 2);
+    SetSoundVolume(fxSoundPool[FX_HURT], 1.2f);
+    SetSoundVolume(fxSoundPool[FX_DYING], 2);
+
     PlayMusicStream(ambience);
 
     // Controle de fluxo do jogo
@@ -131,7 +145,7 @@ int main(void) {
             }
 
             // Atualizar player
-            UpdatePlayer(&player, enemyPool, bulletsPool, grenadesPool, deltaTime, groundPool, envPropsPool, camMinX);
+            UpdatePlayer(&player, enemyPool, bulletsPool, grenadesPool, deltaTime, groundPool, envPropsPool, fxSoundPool, camMinX);
 
             // Atualizar limites de câmera e posição
             camMinX = (camMinX < camera.target.x - camera.offset.x ? camera.target.x - camera.offset.x : camMinX);
@@ -140,12 +154,12 @@ int main(void) {
             for (int i = 0; i < maxCount; i++) {
                 if (i < maxNumBullets) {
                     if (bulletsPool[i].isActive) 
-                        UpdateBullets(&bulletsPool[i], enemyPool, &player, msgPool, groundPool, envPropsPool, deltaTime, camMaxX);
+                        UpdateBullets(&bulletsPool[i], enemyPool, &player, msgPool, groundPool, envPropsPool, fxSoundPool, deltaTime, camMaxX);
                 }
 
                 if (i < maxNumGrenade) {
                     if (grenadesPool[i].isActive)
-                        UpdateGrenades(&grenadesPool[i], enemyPool, &player, msgPool, groundPool, envPropsPool, particlePool, deltaTime);
+                        UpdateGrenades(&grenadesPool[i], enemyPool, &player, msgPool, groundPool, envPropsPool, particlePool, fxSoundPool, deltaTime);
                 }
 
                 if (i < maxNumGrounds) {
@@ -161,7 +175,7 @@ int main(void) {
 
                 if (i < maxNumEnemies) {
                     if (enemyPool[i].isAlive) 
-                        UpdateEnemy(&enemyPool[i], &player, bulletsPool, deltaTime, groundPool, envPropsPool, camMinX);
+                        UpdateEnemy(&enemyPool[i], &player, bulletsPool, deltaTime, groundPool, envPropsPool, fxSoundPool, camMinX);
                 }
 
                 if (i < maxNumParticles) {
@@ -345,6 +359,10 @@ int main(void) {
         UnloadTexture(enemyTex[i]);
 
     UnloadMusicStream(ambience);
+    StopSoundMulti();       // We must stop the buffer pool before unloading
+
+    for (int i = FX_MAGNUM; i <= FX_DYING; i++)
+        UnloadSound(fxSoundPool[i]);     // Unload sound data
     CloseAudioDevice();  
 
     CloseWindow();
@@ -1012,7 +1030,7 @@ void DestroyEnvProp(EnvProps *envPropsPool, Ground *groundsPool, int envPropID) 
     envProp->isActive = false;
 }
 
-void UpdatePlayer(Player *player, Enemy *enemy, Bullet *bulletPool, Grenade *grenadePool, float delta, Ground *ground, EnvProps *envProps, float minX) {
+void UpdatePlayer(Player *player, Enemy *enemy, Bullet *bulletPool, Grenade *grenadePool, float delta, Ground *ground, EnvProps *envProps, Sound *soundPool, float minX) {
     enum CHARACTER_STATE currentLowerState = player->entity.lowerAnimation.currentAnimationState;
     enum CHARACTER_STATE currentUpperState = player->entity.upperAnimation.currentAnimationState;
     player->entity.lowerAnimation.timeSinceLastFrame += delta;
@@ -1051,6 +1069,7 @@ void UpdatePlayer(Player *player, Enemy *enemy, Bullet *bulletPool, Grenade *gre
             if (player->entity.grenadeAmmo > 0) {
                 if (player->entity.upperAnimation.currentAnimationState != THROWING || (player->entity.upperAnimation.currentAnimationState == THROWING && player->entity.upperAnimation.currentAnimationFrame > 3)) {
                     CreateGrenade(&(player->entity), grenadePool, PLAYER);
+                    PlaySoundMulti(soundPool[FX_GRENADE_LAUNCH]);
                     player->entity.grenadeAmmo--;
                     player->entity.upperAnimation.currentAnimationState = THROWING;
                     player->entity.upperAnimation.currentAnimationFrame = 0;
@@ -1062,6 +1081,7 @@ void UpdatePlayer(Player *player, Enemy *enemy, Bullet *bulletPool, Grenade *gre
         if (IsKeyPressed(KEY_R)) {
             if (player->entity.upperAnimation.currentAnimationState != ATTACKING || (player->entity.upperAnimation.currentAnimationState == ATTACKING && player->entity.upperAnimation.currentAnimationFrame > 1)) {
                 CreateBullet(&(player->entity), bulletPool, MAGNUM, PLAYER);
+                PlaySoundMulti(soundPool[FX_MAGNUM]);
                 player->entity.upperAnimation.currentAnimationState = ATTACKING;
                 player->entity.upperAnimation.currentAnimationFrame = 0;
                 player->entity.upperAnimation.timeSinceLastFrame = 0;
@@ -1077,7 +1097,7 @@ void UpdatePlayer(Player *player, Enemy *enemy, Bullet *bulletPool, Grenade *gre
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     // Handler de colisão do player                                   ///////////////////////////////////////////////////////////////////////
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    EntityCollisionHandler(&(player->entity), ground, envProps, delta);
+    EntityCollisionHandler(&(player->entity), ground, envProps, soundPool, delta);
 
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     // Handler de física e gráfico do player                          ///////////////////////////////////////////////////////////////////////
@@ -1100,11 +1120,14 @@ void UpdatePlayer(Player *player, Enemy *enemy, Bullet *bulletPool, Grenade *gre
     player->entity.collisionHead = (Circle) {(Vector2){player->entity.position.x - player->entity.lowerAnimation.isFacingRight * 0.1f * player->entity.width, player->entity.position.y - 0.15f * player->entity.height}, player->entity.width * 0.2f};
     
     // Caixa se morto
-    if (player->entity.lowerAnimation.currentAnimationState == DYING)
+    if (player->entity.lowerAnimation.currentAnimationState == DYING && currentLowerState != DYING)
+        PlaySoundMulti(soundPool[FX_DYING]);
+    if (player->entity.lowerAnimation.currentAnimationState == DYING) {
         player->entity.collisionBox = (Rectangle) {player->entity.position.x  - player->entity.width + (player->entity.lowerAnimation.isFacingRight == -1 ? 0.43f : 0.23f) * player->entity.width, player->entity.position.y, player->entity.width, player->entity.height/2};
+    }
 }
 
-void UpdateEnemy(Enemy *enemy, Player *player, Bullet *bulletPool, float delta, Ground *ground, EnvProps *envProps, int minX) {
+void UpdateEnemy(Enemy *enemy, Player *player, Bullet *bulletPool, float delta, Ground *ground, EnvProps *envProps, Sound *soundPool, int minX) {
     Entity *eEnt = &(enemy->entity);
     enum CHARACTER_STATE currentLowerState = eEnt->lowerAnimation.currentAnimationState;
     enum CHARACTER_STATE currentUpperState = eEnt->upperAnimation.currentAnimationState;
@@ -1113,18 +1136,16 @@ void UpdateEnemy(Enemy *enemy, Player *player, Bullet *bulletPool, float delta, 
     enemy->timeSinceLastBehaviorChange += delta;
     enemy->timeSinceLastAttack += delta;
 
-    if (enemy->entity.position.x + enemy->entity.width < minX) {
-        enemy->isAlive = false;
-    }
+
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     // Handler de comportamento do enemy                              ///////////////////////////////////////////////////////////////////////
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    SteeringBehavior(enemy, player, bulletPool, delta);
+    SteeringBehavior(enemy, player, bulletPool, soundPool, delta);
     
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     // Handler de colisão do enemy                                    ///////////////////////////////////////////////////////////////////////
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    EntityCollisionHandler(&(enemy->entity), ground, envProps, delta);
+    EntityCollisionHandler(&(enemy->entity), ground, envProps, soundPool, delta);
 
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     // Handler de física e gráfico do enemy                           ///////////////////////////////////////////////////////////////////////
@@ -1136,11 +1157,14 @@ void UpdateEnemy(Enemy *enemy, Player *player, Bullet *bulletPool, float delta, 
     eEnt->collisionHead = (Circle) {(Vector2){eEnt->position.x - eEnt->lowerAnimation.isFacingRight * 0.1f * eEnt->width, eEnt->position.y - 0.15f * eEnt->height}, eEnt->width * 0.2f};
 
     // Colisão se morto
-    if (eEnt->lowerAnimation.currentAnimationState == DYING)
+    if (eEnt->lowerAnimation.currentAnimationState == DYING && currentLowerState != DYING)
+        PlaySoundMulti(soundPool[FX_DYING]);
+    if (eEnt->lowerAnimation.currentAnimationState == DYING) {
         eEnt->collisionBox = (Rectangle) {eEnt->position.x  - eEnt->width + (eEnt->lowerAnimation.isFacingRight == -1 ? 0.43f : 0.23f) * eEnt->width, eEnt->position.y, eEnt->width, eEnt->height/2};
+    }
 }
      
-void UpdateBullets(Bullet *bullet, Enemy *enemy, Player *player, MSGSystem *msgSystem, Ground *ground, EnvProps *envProp, float delta, int maxX) {
+void UpdateBullets(Bullet *bullet, Enemy *enemy, Player *player, MSGSystem *msgSystem, Ground *ground, EnvProps *envProp, Sound *soundPool, float delta, int maxX) {
     bullet->lifeTime += delta;
     bullet->animation.timeSinceLastFrame += delta;
     // Checar colisão
@@ -1178,6 +1202,7 @@ void UpdateBullets(Bullet *bullet, Enemy *enemy, Player *player, MSGSystem *msgS
                 if (currentEnemy->entity.lowerAnimation.currentAnimationState != DYING) {
                     if (CheckCollisionRecs(currentEnemy->entity.collisionBox, bullet->collisionBox) || CheckCollisionCircleRec(currentEnemy->entity.collisionHead.center, currentEnemy->entity.collisionHead.radius, bullet->collisionBox)) {
                         bullet->isActive = false;
+                        PlaySoundMulti(soundPool[FX_HURT]);
                         HurtEntity(&(currentEnemy->entity), *bullet, 50); // TODO damage
                         if (currentEnemy->entity.currentHP <= 0) {
                             KillEnemy(player, currentEnemy, msgSystem);
@@ -1193,6 +1218,7 @@ void UpdateBullets(Bullet *bullet, Enemy *enemy, Player *player, MSGSystem *msgS
         if (CheckCollisionRecs(player->entity.collisionBox, bullet->collisionBox) || CheckCollisionCircleRec(player->entity.collisionHead.center, player->entity.collisionHead.radius, bullet->collisionBox)) {
             bullet->isActive = false;
             player->entity.currentHP -= 20;
+            PlaySoundMulti(soundPool[FX_HURT]);
             // TODO Causa dano ao player
             // TODO Criar animação de sangue
         }
@@ -1259,7 +1285,7 @@ void UpdateBullets(Bullet *bullet, Enemy *enemy, Player *player, MSGSystem *msgS
 
 }
 
-void UpdateGrenades(Grenade *grenade, Enemy *enemy, Player *player, MSGSystem *msgSystem, Ground *ground, EnvProps *envProp, Particle *particlePool, float delta) {
+void UpdateGrenades(Grenade *grenade, Enemy *enemy, Player *player, MSGSystem *msgSystem, Ground *ground, EnvProps *envProp, Particle *particlePool, Sound *soundPool, float delta) {
     grenade->lifeTime += delta;
     grenade->animation.timeSinceLastFrame += delta;
     grenade->angle += 5;
@@ -1272,6 +1298,7 @@ void UpdateGrenades(Grenade *grenade, Enemy *enemy, Player *player, MSGSystem *m
         int collisionThreshold = 5;
         if (curGround->isActive) {
             if (CheckCollisionCircleRec(futureCenter, grenade->collisionCircle.radius, curGround->rect)) {
+                PlaySoundMulti(soundPool[FX_GRENADE_BOUNCING]);
                 if (grenade->collisionCircle.center.x + grenade->collisionCircle.radius - curGround->rect.x <= collisionThreshold || grenade->collisionCircle.center.x - grenade->collisionCircle.radius - curGround->rect.x - curGround->rect.width >= -collisionThreshold) {
                     grenade->velocity.x *= -0.6f;
                 }
@@ -1293,6 +1320,7 @@ void UpdateGrenades(Grenade *grenade, Enemy *enemy, Player *player, MSGSystem *m
                         grenade->isActive = false;
                         Vector2 particlePosition = grenade->position;
                         particlePosition.y -= grenade->drawableRect.height/2;
+                        PlaySoundMulti(soundPool[FX_GRENADE_EXPLOSION]);
                         ExplosionAOE(player, msgSystem, envProp, enemy, ground, 100, 100, grenade->position, PLAYER);
                         CreateParticle(grenade->position, (Vector2) {0, 0}, particlePool, SMOKE, 4, 0, (Vector2) {1, 1}, false, 1);
                         CreateParticle(grenade->position, (Vector2) {0, 0}, particlePool, EXPLOSION, 4, 0, (Vector2) {1, 1}, false, 1);
@@ -1307,6 +1335,7 @@ void UpdateGrenades(Grenade *grenade, Enemy *enemy, Player *player, MSGSystem *m
         grenade->isActive = false;
         Vector2 particlePosition = grenade->position;
         particlePosition.y -= grenade->drawableRect.height/2;
+        PlaySoundMulti(soundPool[FX_GRENADE_EXPLOSION]);
         ExplosionAOE(player, msgSystem, envProp, enemy, ground, 100, 100, grenade->position, PLAYER);
         CreateParticle(particlePosition, (Vector2) {0, 0}, particlePool, SMOKE, 4, 0, (Vector2) {1, 1}, false, 1);
         CreateParticle(grenade->position, (Vector2) {0, 0}, particlePool, EXPLOSION, 4, 0, (Vector2) {1, 1}, false, 1);

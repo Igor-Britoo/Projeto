@@ -21,11 +21,12 @@ enum BULLET_TYPE{MAGNUM, SNIPER, LASER};
 enum ENEMY_CLASSES{SWORDSMAN, ASSASSIN, GUNNER, SNIPERSHOOTER, DRONE, TURRET, BOSS};
 enum OBJECTS_TYPES {METAL_CRATE, AMMO_CRATE, HP_CRATE, CARD_CRATE1, CARD_CRATE2, CARD_CRATE3, TRASH_BIN, EXPLOSIVE_BARREL, METAL_BARREL, GARBAGE_BAG1, GARBAGE_BAG2, TRASH_CONTAINER, ROAD_BLOCK};
 enum PARTICLE_TYPES {EXPLOSION, SMOKE, BLOOD_SPILL, MAGNUM_SHOOT};
+enum SOUNDS {FX_MAGNUM, FX_ENTITY_LANDING, FX_GRENADE_LAUNCH, FX_GRENADE_BOUNCING, FX_GRENADE_EXPLOSION, FX_HURT, FX_DYING};
 
 // Consts
 const float GRAVITY = 400; // 400 px / f²
-const float bulletLifeTime = 0.8; // 4 s
-const float grenadeExplosionTime = 4; // 4 s
+const float bulletLifeTime = 0.65; // 4 s
+const float grenadeExplosionTime = 2.5f; // 4 s
 const float msgTime = 3; // 4 s
 const static int numBackgroundRendered = 7;
 const static int maxNumBullets = 100;
@@ -268,12 +269,12 @@ void DestroyEnvProp(EnvProps *envPropsPool, Ground *groundsPool, int envPropID);
 
 void UpdateBackground(Player *player, Background *backgroundPool, int i, Texture2D srcAtlas, Enemy *enemyPool, EnvProps *envPropsPool, Ground *groundPool, float delta, int *numBackground, float minX, float *maxX);
 void UpdateClampedCameraPlayer(Camera2D *camera, Player *player, float delta, int width, int height, float *minX, float *maxX);
-void UpdatePlayer(Player *player, Enemy *enemy, Bullet *bulletPool, Grenade *grenadePool, float delta, Ground *ground, EnvProps *envProps, float minX);
-void UpdateBullets(Bullet *bullet, Enemy *enemy, Player *player, MSGSystem *msgSystem, Ground *ground, EnvProps *envProp, float delta, int maxX);
-void UpdateEnemy(Enemy *enemy, Player *player, Bullet *bulletPool, float delta, Ground *ground, EnvProps *envProps, int minX);
+void UpdatePlayer(Player *player, Enemy *enemy, Bullet *bulletPool, Grenade *grenadePool, float delta, Ground *ground, EnvProps *envProps, Sound *soundPool, float minX);
+void UpdateBullets(Bullet *bullet, Enemy *enemy, Player *player, MSGSystem *msgSystem, Ground *ground, EnvProps *envProp, Sound *soundPool, float delta, int maxX);
+void UpdateEnemy(Enemy *enemy, Player *player, Bullet *bulletPool, float delta, Ground *ground, EnvProps *envProps, Sound *soundPool, int minX);
 void UpdateGrounds(Player *player, Ground *ground, float delta, float minX);
 void UpdateEnvProps(Player *player, EnvProps *envPropsPool, Ground *groundsPool, float delta, float minX);
-void UpdateGrenades(Grenade *grenade, Enemy *enemy, Player *player, MSGSystem *msgSystem, Ground *ground, EnvProps *envProp, Particle *particlePool, float delta);
+void UpdateGrenades(Grenade *grenade, Enemy *enemy, Player *player, MSGSystem *msgSystem, Ground *ground, EnvProps *envProp, Particle *particlePool, Sound *soundPool, float delta);
 void UpdateParticles(Particle *particlePool, float delta, float minX);
 void UpdateMSGs(MSGSystem *curMsg, float delta);
 
@@ -330,7 +331,7 @@ void AttackTarget(Enemy *enemy, Bullet *bulletPool) {
     enemy->entity.velocity.x = 0;
 }
 
-void SteeringBehavior(Enemy *enemy, Player *player, Bullet *bulletPool, float delta) {
+void SteeringBehavior(Enemy *enemy, Player *player, Bullet *bulletPool, Sound *soundPool, float delta) {
     Entity *eEnt = &(enemy->entity); // Pointer direto para a Entity do inimigo
     Entity *pEnt = &(player->entity); // Pointer direto para a Entity do player
     
@@ -366,6 +367,7 @@ void SteeringBehavior(Enemy *enemy, Player *player, Bullet *bulletPool, float de
                         if (enemy->timeSinceLastAttack >= 1/enemy->attackSpeed && enemy->entity.lowerAnimation.currentAnimationFrame == 0) {
                             enemy->timeSinceLastAttack = 0;
                             enemy->behavior = ATTACK;
+                            PlaySoundMulti(soundPool[FX_MAGNUM]);
                             AttackTarget(enemy, bulletPool);
                         } else {
                             //enemy->behavior = NONE;
@@ -380,6 +382,7 @@ void SteeringBehavior(Enemy *enemy, Player *player, Bullet *bulletPool, float de
                         if (enemy->timeSinceLastAttack >= 1/enemy->attackSpeed && enemy->entity.lowerAnimation.currentAnimationFrame == 0) {
                             enemy->timeSinceLastAttack = 0;
                             enemy->behavior = ATTACK;
+                            PlaySoundMulti(soundPool[FX_MAGNUM]);
                             AttackTarget(enemy, bulletPool);
                         } else {
                             //enemy->behavior = NONE;
@@ -512,6 +515,7 @@ void PhysicsAndGraphicsHandlers (Entity *entity, float delta, enum CHARACTER_STA
     if (entity->currentHP <= 0 && !(entity->lowerAnimation.currentAnimationState == DYING)) {
         entity->lowerAnimation.currentAnimationState = DYING;
         entity->upperAnimation.currentAnimationState = DYING;
+
     }
 
     int lAnimRow = 0;
@@ -652,9 +656,10 @@ void PhysicsAndGraphicsHandlers (Entity *entity, float delta, enum CHARACTER_STA
     entity->upperAnimation.currentAnimationFrameRect.width = entity->lowerAnimation.isFacingRight * entity->upperAnimation.animationFrameWidth;
 }
 
-void EntityCollisionHandler(Entity *entity, Ground *ground, EnvProps *envProp, float delta) {
+void EntityCollisionHandler(Entity *entity, Ground *ground, EnvProps *envProp, Sound *soundPool, float delta) {
     // Colisão com grounds                                            ///////////////////////////////////////////////////////////////////////
     int hitObstacle = 0;
+    bool initIsGrounded = entity->isGrounded; // usado para o som da entidade batendo no chão
     for (int i = 0; i < maxNumGrounds; i++)
     {
         Ground *curGround = ground + i;
@@ -717,6 +722,10 @@ void EntityCollisionHandler(Entity *entity, Ground *ground, EnvProps *envProp, f
         entity->isGrounded = false;
     } else {
         entity->isGrounded = true;
+    }
+
+    if (initIsGrounded != entity->isGrounded && (entity->isGrounded)) {
+        PlaySoundMulti(soundPool[FX_ENTITY_LANDING]);
     }
 
     // Colisão com Props coletáveis                                  ///////////////////////////////////////////////////////////////////////
