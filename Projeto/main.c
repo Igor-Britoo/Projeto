@@ -28,7 +28,7 @@ int main(void) {
     InitAudioDevice();              // Initialize audio device
     SetMasterVolume(0.4f);
     Music ambience = LoadMusicStream("resources/Audio/ambience.mp3");
-    Sound *fxSoundPool = (Sound *)malloc(8*sizeof(Sound));
+    Sound *fxSoundPool = (Sound *)malloc(10*sizeof(Sound));
     fxSoundPool[FX_MAGNUM] = LoadSound("resources/Audio/magnumShot.ogg"); 
     fxSoundPool[FX_ENTITY_LANDING] = LoadSound("resources/Audio/entityLanding.ogg"); 
     fxSoundPool[FX_GRENADE_LAUNCH] = LoadSound("resources/Audio/grenadeLaunch.ogg"); 
