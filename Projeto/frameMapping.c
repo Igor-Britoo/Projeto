@@ -8,7 +8,7 @@ int static PLAYER_LEGS_IDLE_NUM_FRAMES = 6;
 int static PLAYER_LEGS_JUMPING_ROW = 1;
 int static PLAYER_LEGS_JUMPING_NUM_FRAMES = 5; // Não conta com o frame de "falling"
 int static PLAYER_LEGS_WALKING_ROW = 2;
-int static PLAYER_LEGS_WALKING_NUM_FRAMES = 8;
+int static PLAYER_LEGS_WALKING_NUM_FRAMES = 6;
 // UPPER são as animações exclusivas a parte superior do player
 int static PLAYER_UPPER_IDLE_ROW = 3;
 int static PLAYER_UPPER_IDLE_NUM_FRAMES = 6;
@@ -82,7 +82,8 @@ int static OBJECTS_EXPLOSIVE_BARREL[2] = {1, 1};
 int static OBJECTS_METAL_BARREL[2] = {1, 2};
 int static OBJECTS_GARBAGE_BAG1[2] = {1, 3};
 int static OBJECTS_GARBAGE_BAG2[2] = {1, 4};
-int static OBJECTS_TRASH_CONTAINER[2] = {2, 0};
+int static OBJECTS_TRASH_CONTAINER_RECT[4] = {2, 0, 3, 2};
+int static OBJECTS_ROAD_BLOCK_RECT[4] = {2, 2, 3, 2};
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Background frames ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -143,14 +144,3 @@ int static MISC_GRANADE_NUM_FRAMES = 1;
 int static MISC_EXPLOSION_ROW = 6;
 int static MISC_EXPLOSION_NUM_FRAMES = 9;
 
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Points frames /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-int static PTS_KILL_SWORDSMAN = 150;
-int static PTS_KILL_ASSASSIN = 300;
-int static PTS_KILL_GUNNER = 450;
-int static PTS_DESTROY_CARD_CRATE = 20;
-int static PTS_DESTROY_GARBAGE_BAG = 15;
-int static PTS_DESTROY_EXPLOSIVE_BARREL = 150;
-int static PTS_COLLECT_HP = 10;
-int static PTS_COLLECT_AMMO = 10;
