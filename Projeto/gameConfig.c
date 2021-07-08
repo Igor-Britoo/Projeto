@@ -131,7 +131,6 @@ typedef struct enemy
     float attackSpeed;
     float timeSinceLastAttack;
     int pointsWorth;
-    int basePointsWorth;
 
 } Enemy;
 
@@ -257,7 +256,6 @@ typedef struct envProps {
     bool isCollectable;
     bool isActive;
     int pointsWorth;
-    int basePointsWorth;
 } EnvProps;
 
 // Headers
@@ -279,9 +277,9 @@ void UpdateBackground(Player *player, Background *backgroundPool, int i, Texture
 void UpdateClampedCameraPlayer(Camera2D *camera, Player *player, float delta, int width, int height, float *minX, float *maxX);
 void UpdatePlayer(Player *player, Enemy *enemy, Bullet *bulletPool, Grenade *grenadePool, float delta, Ground *ground, EnvProps *envProps, Particle *particlePool, Sound *soundPool, MSGSystem *msgSystem, float minX);
 void UpdateBullets(Bullet *bullet, Enemy *enemyPool, Player *player, MSGSystem *msgSystem, Ground *groundsPool, EnvProps *envPropsPool, Sound *soundPool, Particle *particlePool, float delta, int maxX, int difficulty);
-void UpdateEnemy(Enemy *enemy, Player *player, Bullet *bulletPool, float delta, Ground *ground, EnvProps *envProps, Sound *soundPool, Particle *particlePool, MSGSystem *msgSystem, int minX, int difficulty, float time);
+void UpdateEnemy(Enemy *enemy, Player *player, Bullet *bulletPool, float delta, Ground *ground, EnvProps *envProps, Sound *soundPool, Particle *particlePool, MSGSystem *msgSystem, int minX);
 void UpdateGrounds(Player *player, Ground *ground, float delta, float minX);
-void UpdateEnvProps(Player *player, Enemy *enemyPool, EnvProps *envProp, Ground *groundsPool, Particle *particlePool, Sound *soundPool, MSGSystem *msgSystem, float delta, float minX, int difficulty, int time);
+void UpdateEnvProps(Player *player, Enemy *enemyPool, EnvProps *envPropsPool, Ground *groundsPool, Particle *particlePool, Sound *soundPool, MSGSystem *msgSystem, float delta, float minX);
 void UpdateGrenades(Grenade *grenade, Enemy *enemy, Player *player, MSGSystem *msgSystem, Ground *ground, EnvProps *envProp, Particle *particlePool, Sound *soundPool, float delta);
 void UpdateParticles(Particle *particlePool, float delta, float minX);
 void UpdateMSGs(MSGSystem *curMsg, float delta);

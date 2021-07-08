@@ -177,6 +177,7 @@ Menu:
     Background *nearBackgroundPool = (Background *)malloc(numBackgroundRendered*sizeof(Background));
     Background *middleBackgroundPool = (Background *)malloc(numBackgroundRendered*sizeof(Background));
     Background *farBackgroundPool = (Background *)malloc(numBackgroundRendered*sizeof(Background));
+
     int maxCount = 0;
     int numNearBackground = 0, numMiddleBackground = 0, numFarBackground = 0; // Usado para posicionamento correto das novas imagens geradas
     maxCount = fmax(maxNumGrounds, maxNumGrenade);
@@ -265,7 +266,7 @@ Menu:
 
                 for (int i = 0; i < maxNumEnemies; i++) {
                     if (enemyPool[i].isAlive) 
-                        UpdateEnemy(&enemyPool[i], &player, bulletsPool, deltaTime, groundPool, envPropsPool, fxSoundPool, particlePool, msgPool, camMinX, difficulty, time);
+                        UpdateEnemy(&enemyPool[i], &player, bulletsPool, deltaTime, groundPool, envPropsPool, fxSoundPool, particlePool, msgPool, camMinX);
                 }
 
                 for (int i = 0; i < maxNumBullets; i++) {
@@ -285,7 +286,7 @@ Menu:
 
                 for (int i = 0; i < maxNumEnvProps; i++) {
                     if (envPropsPool[i].isActive)
-                        UpdateEnvProps(&player, enemyPool, &envPropsPool[i], groundPool, particlePool, fxSoundPool, msgPool, deltaTime, camMinX, difficulty, time);
+                        UpdateEnvProps(&player, enemyPool, &envPropsPool[i], groundPool, particlePool, fxSoundPool, msgPool, deltaTime, camMinX);
                 }
 
                 for (int i = 0; i < maxNumParticles; i++) {
@@ -444,50 +445,55 @@ Menu:
         else if (gameState == GAMEOVER) {
             BeginDrawing();
                 ClearBackground(GetColor(0x052c46ff));
-                int key = GetCharPressed();
-                
-                // Check if more characters have been pressed on the same frame
-                while (key > 0){
-                    // NOTE: Only allow keys in range [32..125]
-                    if ((key >= 32) && (key <= 125) && (letterCount < 3))
+                if(player.points > atoi(scorePool[9].point)) {
+                    int key = GetCharPressed();
+                    
+                    // Check if more characters have been pressed on the same frame
+                    while (key > 0){
+                        // NOTE: Only allow keys in range [32..125]
+                        if ((key >= 32) && (key <= 125) && (letterCount < 3))
+                        {
+                            received_name[letterCount] = (char)key;
+                            received_name[letterCount+1] ='\0';
+                            letterCount++;
+                        }
+                        key = GetCharPressed();  // Check next character in the queue
+                    }
+                    if (IsKeyPressed(KEY_BACKSPACE))
                     {
-                        received_name[letterCount] = (char)key;
-                        received_name[letterCount+1] ='\0';
-                        letterCount++;
+                        letterCount--;
+                        if (letterCount < 0) letterCount = 0;
+                        received_name[letterCount] = '\0';
                     }
-                    key = GetCharPressed();  // Check next character in the queue
-                }
-                if (IsKeyPressed(KEY_BACKSPACE))
-                {
-                    letterCount--;
-                    if (letterCount < 0) letterCount = 0;
-                    received_name[letterCount] = '\0';
-                }
-                DrawText(TextFormat("POINTS: %d", player.points), 600, 250, 20, RED);
-                if(IsKeyPressed(KEY_ENTER) && letterCount==3){
-                    received_name[letterCount + 1] = '\0';
-                    received_points= player.points;
-                    if(received_points > atoi(scorePool[9].point)) { // Verifica se está no top 5
-                        UpdateScores(scorePool, received_name, received_points);
-                        WriteScore(fptr, fileName, scorePool);
+                    DrawText(TextFormat("POINTS: %d", player.points), 600, 250, 20, RED);
+                    if(IsKeyPressed(KEY_ENTER) && letterCount==3){
+                        received_name[letterCount + 1] = '\0';
+                        received_points= player.points;
+                        if(received_points > atoi(scorePool[9].point)) { // Verifica se está no top 5
+                            UpdateScores(scorePool, received_name, received_points);
+                            WriteScore(fptr, fileName, scorePool);
+                        }
+                        gameState = SCORE;
+                        goto Menu;
                     }
-                    gameState = SCORE;
+
+                    DrawText(received_name, (screenWidth/2 - 100) + 5, screenHeight/2 + 8, 80, WHITE);
+                    DrawText(TextFormat("INPUT CHARS: %i/%i", letterCount, 3), 315, 250, 20, DARKGRAY);
+
+                    if (letterCount < 3)
+                    {
+                    // Draw blinking underscore char
+                        if (((framesCounter/20)%2) == 0){
+                            DrawText("_", (screenWidth/2 - 100) + 8 + MeasureText(received_name, 80), screenHeight/2 + 12, 80, WHITE);
+                        }
+                    }
+                    else DrawText("Press ENTER to confirm", 230, 330, 20, GRAY);
+                    
+                    if(letterCount > 0)DrawText("Press BACKSPACE to delete chars...", 230, 300, 20, GRAY);
+                } else {
+                    gameState = MENU;
                     goto Menu;
                 }
-
-                DrawText(received_name, (screenWidth/2 - 100) + 5, screenHeight/2 + 8, 80, WHITE);
-                DrawText(TextFormat("INPUT CHARS: %i/%i", letterCount, 3), 315, 250, 20, DARKGRAY);
-
-                if (letterCount < 3)
-                {
-                // Draw blinking underscore char
-                    if (((framesCounter/20)%2) == 0){
-                        DrawText("_", (screenWidth/2 - 100) + 8 + MeasureText(received_name, 80), screenHeight/2 + 12, 80, WHITE);
-                    }
-                }
-                else DrawText("Press ENTER to confirm", 230, 330, 20, GRAY);
-                
-                if(letterCount > 0)DrawText("Press BACKSPACE to delete chars...", 230, 300, 20, GRAY);
             EndDrawing();
         }
 
@@ -516,7 +522,20 @@ Quit:
 
     for (int i = FX_MAGNUM; i <= FX_DYING; i++)
         UnloadSound(fxSoundPool[i]);     // Unload sound data
-    CloseAudioDevice();  
+    CloseAudioDevice(); 
+
+    free(fxSoundPool);
+    free(enemyTex);
+    free(bulletsPool);
+    free(grenadesPool);
+    free(groundPool);
+    free(envPropsPool);
+    free(enemyPool);
+    free(particlePool);
+    free(msgPool);
+    free(nearBackgroundPool);
+    free(middleBackgroundPool);
+    free(farBackgroundPool); 
 
     CloseWindow();
     return 0;
@@ -828,7 +847,6 @@ void CreateEnemy(Enemy *enemyPool, enum ENEMY_CLASSES class, Vector2 position, i
                     break;
             }
         
-            newEnemy->basePointsWorth = newEnemy->pointsWorth;
             newEnemy->entity.lowerAnimation.animationFrameWidth = newEnemy->entity.GRID[0];
             newEnemy->entity.lowerAnimation.animationFrameHeight = newEnemy->entity.GRID[1];
             newEnemy->entity.lowerAnimation.currentAnimationFrameRect.width = newEnemy->entity.lowerAnimation.animationFrameWidth;
@@ -1173,7 +1191,6 @@ void CreateEnvProp(EnvProps *envPropsPool, Ground *groundPool, enum OBJECTS_TYPE
             frameW = OBJECTS_GRID[0];
             frameH = OBJECTS_GRID[1];
             curProp->id = i;
-            curProp->basePointsWorth = curProp->pointsWorth;
             curProp->type = obType;
             curProp->frameRect = (Rectangle) {frameX * frameW, frameY * frameH, frameW, frameH};
             curProp->groundID = CreateGround(groundPool, (Vector2){curProp->collisionRect.x, curProp->collisionRect.y}, curProp->collisionRect.width, curProp->collisionRect.height, canBeStepped, followCamera, blockPlayer, isInvisible, true, obType);
@@ -1319,9 +1336,7 @@ void UpdatePlayer(Player *player, Enemy *enemy, Bullet *bulletPool, Grenade *gre
     }
 }
 
-void UpdateEnemy(Enemy *enemy, Player *player, Bullet *bulletPool, float delta, Ground *ground, EnvProps *envProps, Sound *soundPool, Particle *particlePool, MSGSystem *msgSystem, int minX, int difficulty, float time) {
-    enemy->pointsWorth = fmin(2*enemy->basePointsWorth, (int)((1+(difficulty)/15)*enemy->basePointsWorth/(time/10)));
-
+void UpdateEnemy(Enemy *enemy, Player *player, Bullet *bulletPool, float delta, Ground *ground, EnvProps *envProps, Sound *soundPool, Particle *particlePool, MSGSystem *msgSystem, int minX) {
     Entity *eEnt = &(enemy->entity);
     enum CHARACTER_STATE currentLowerState = eEnt->lowerAnimation.currentAnimationState;
     enum CHARACTER_STATE currentUpperState = eEnt->upperAnimation.currentAnimationState;
@@ -1611,11 +1626,9 @@ void UpdateGrounds(Player *player, Ground *ground, float delta, float minX) {
         ground->isActive = false;
 }
 
-void UpdateEnvProps(Player *player, Enemy *enemyPool, EnvProps *envProp, Ground *groundsPool, Particle *particlePool, Sound *soundPool, MSGSystem *msgSystem, float delta, float minX, int difficulty, int time) {
-    envProp->pointsWorth = fmin(2*envProp->basePointsWorth, (int)((1+(difficulty)/15)*envProp->basePointsWorth/(time/10)));
-
-    if (envProp->drawableRect.x + envProp->drawableRect.width < minX) 
-        DestroyEnvProp(&player, enemyPool, envProp, groundsPool, particlePool, soundPool, msgSystem, -1);
+void UpdateEnvProps(Player *player, Enemy *enemyPool, EnvProps *envPropsPool, Ground *groundsPool, Particle *particlePool, Sound *soundPool, MSGSystem *msgSystem, float delta, float minX) {
+    if (envPropsPool->drawableRect.x + envPropsPool->drawableRect.width < minX) 
+        DestroyEnvProp(&player, enemyPool, envPropsPool, groundsPool, particlePool, soundPool, msgSystem, -1);
 }
 
 void UpdateParticles(Particle *curParticle, float delta, float minX) {
