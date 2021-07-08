@@ -219,7 +219,7 @@ Menu:
 
     // Criar chão
     CreateGround(groundPool, (Vector2){0,screenHeight-60},screenWidth*7,5, true, true, false, true, false, -1); // Chão (esse é sempre existente)
-    
+
     // Criar chunks
     for (int i = 0; i < numBackgroundRendered; i++) {
         farBackgroundPool[i] = CreateBackground(&player, enemyPool, envPropsPool, farBackgroundPool, groundPool, backgroundAtlas, BACKGROUND, &numFarBackground, i, difficulty);
@@ -258,7 +258,7 @@ Menu:
             time += deltaTime;
             
             // Atualizar player
-            UpdatePlayer(&player, enemyPool, bulletsPool, grenadesPool, deltaTime, groundPool, envPropsPool, particlePool,fxSoundPool, msgPool, camMinX);
+            UpdatePlayer(&player, enemyPool, bulletsPool, grenadesPool, deltaTime, groundPool, envPropsPool, particlePool,fxSoundPool, msgPool, camMinX, difficulty);
 
             // Atualizar limites de câmera e posição
             camMinX = (camMinX < camera.target.x - camera.offset.x ? camera.target.x - camera.offset.x : camMinX);
@@ -266,7 +266,7 @@ Menu:
 
                 for (int i = 0; i < maxNumEnemies; i++) {
                     if (enemyPool[i].isAlive) 
-                        UpdateEnemy(&enemyPool[i], &player, bulletsPool, deltaTime, groundPool, envPropsPool, fxSoundPool, particlePool, msgPool, camMinX);
+                        UpdateEnemy(&enemyPool[i], &player, bulletsPool, deltaTime, groundPool, envPropsPool, fxSoundPool, particlePool, msgPool, camMinX, difficulty);
                 }
 
                 for (int i = 0; i < maxNumBullets; i++) {
@@ -276,7 +276,7 @@ Menu:
 
                 for (int i = 0; i < maxNumGrenade; i++) {
                     if (grenadesPool[i].isActive)
-                        UpdateGrenades(&grenadesPool[i], enemyPool, &player, msgPool, groundPool, envPropsPool, particlePool, fxSoundPool, deltaTime);
+                        UpdateGrenades(&grenadesPool[i], enemyPool, &player, msgPool, groundPool, envPropsPool, particlePool, fxSoundPool, deltaTime, difficulty);
                 }
 
                 for (int i = 0; i < maxNumGrounds; i++) {
@@ -307,7 +307,6 @@ Menu:
             
 
         }
-
 
         // Draw cycle
         
@@ -584,7 +583,7 @@ Player CreatePlayer (int maxHP, Vector2 position, int width, int height) {
     newPlayer.entity.momentum.x = 0.0f;
     newPlayer.entity.momentum.y = 0.0f;
     newPlayer.entity.grenadeAmmo = 0;
-    newPlayer.entity.magnumAmmo = 200;
+    newPlayer.entity.magnumAmmo = 400;
     newPlayer.entity.maxXSpeed = 400;
     newPlayer.entity.sprintSpeed = 800;
     newPlayer.entity.jumpSpeed = 250;
@@ -1212,7 +1211,7 @@ Camera2D CreateCamera (Vector2 target, Vector2 offset, float rotation, float zoo
     return newCam;
 }
 
-void DestroyEnvProp(Player *player, Enemy *enemyPool,EnvProps *envPropsPool, Ground *groundsPool, Particle *particlePool, Sound *soundPool, MSGSystem *msgSystem, int envPropID) {
+void DestroyEnvProp(Player *player, Enemy *enemyPool,EnvProps *envPropsPool, Ground *groundsPool, Particle *particlePool, Sound *soundPool, MSGSystem *msgSystem, int envPropID, int difficulty) {
     EnvProps *envProp;
     if (envPropID != -1) 
         envProp = envPropsPool + envPropID;
@@ -1227,11 +1226,14 @@ void DestroyEnvProp(Player *player, Enemy *enemyPool,EnvProps *envPropsPool, Gro
         player->points += envProp->pointsWorth;
         CreateMSG((Vector2) {envProp->drawableRect.x+envProp->drawableRect.width/2, envProp->drawableRect.y}, msgSystem, envProp->pointsWorth);
         if (envProp->type == EXPLOSIVE_BARREL) {
-            ExplosionAOE(player, msgSystem, envProp, enemyPool, ground, particlePool, soundPool, 150, 150, (Vector2) {envProp->drawableRect.x+envProp->drawableRect.width/2, envProp->drawableRect.y+envProp->drawableRect.height/2}, PLAYER);
+            ExplosionAOE(player, msgSystem, envProp, enemyPool, ground, particlePool, soundPool, 150, 150, (Vector2) {envProp->drawableRect.x+envProp->drawableRect.width/2, envProp->drawableRect.y+envProp->drawableRect.height/2}, PLAYER, difficulty);
             PlaySoundMulti(soundPool[FX_GRENADE_EXPLOSION]);
             CreateParticle((Vector2) {envProp->drawableRect.x+envProp->drawableRect.width/2, envProp->drawableRect.y+envProp->drawableRect.height/2}, (Vector2) {0, 0}, particlePool, SMOKE, 4, 0, (Vector2) {1, 1}, false, 1);
             CreateParticle((Vector2) {envProp->drawableRect.x+envProp->drawableRect.width/2, envProp->drawableRect.y+envProp->drawableRect.height/2}, (Vector2) {0, 0}, particlePool, EXPLOSION, 4, 0, (Vector2) {1, 1}, false, 1);
+        } else if (GetRandomValue(1,100) <= fmin(difficulty*0.25f, 4)) {  // 2% de chance de dropar ammo ou hp
+            CreateEnvProp(envPropsPool, groundsPool, (GetRandomValue(1,2) == 1 ? AMMO_CRATE : HP_CRATE), (Vector2) {envProp->drawableRect.x, envProp->drawableRect.y}, 130, 130);
         }
+        
     }
 }
 
@@ -1239,7 +1241,7 @@ void UpdateDifficulty(int *difficulty, float minX, float time) {
     *difficulty = (int) ((minX + 10*time)/(7*screenWidth));
 }
 
-void UpdatePlayer(Player *player, Enemy *enemy, Bullet *bulletPool, Grenade *grenadePool, float delta, Ground *ground, EnvProps *envProps, Particle *particlePool, Sound *soundPool, MSGSystem *msgSystem, float minX) {
+void UpdatePlayer(Player *player, Enemy *enemy, Bullet *bulletPool, Grenade *grenadePool, float delta, Ground *ground, EnvProps *envProps, Particle *particlePool, Sound *soundPool, MSGSystem *msgSystem, float minX, int difficulty) {
     enum CHARACTER_STATE currentLowerState = player->entity.lowerAnimation.currentAnimationState;
     enum CHARACTER_STATE currentUpperState = player->entity.upperAnimation.currentAnimationState;
     player->entity.lowerAnimation.timeSinceLastFrame += delta;
@@ -1249,7 +1251,7 @@ void UpdatePlayer(Player *player, Enemy *enemy, Bullet *bulletPool, Grenade *gre
         /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
         // Handler de input do player                                     ///////////////////////////////////////////////////////////////////////
         /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-        if (player->entity.lowerAnimation.currentAnimationState != DYING ) {//} && player->entity.animation.currentAnimationState != HURT && player->entity.animation.currentAnimationState != ATTACKING) {
+        if (player->entity.lowerAnimation.currentAnimationState != DYING ) {
             
             // Registro das teclas "up" e "down". A tecla "up" tem prioridade sobre a "down" por convenção
             player->entity.upPressed = false;
@@ -1299,18 +1301,13 @@ void UpdatePlayer(Player *player, Enemy *enemy, Bullet *bulletPool, Grenade *gre
                         player->entity.upperAnimation.timeSinceLastFrame = 0;
                     }
                 }
-                //player->entity.animation.currentAnimationState = ATTACKING;
-                //player->entity.animation.currentAnimationFrame = 0;
-                //player->entity.animation.timeSinceLastFrame = 0;
-                //if (player->entity.isGrounded)
-                //    player->entity.velocity.x = 0;
             }
         }
 
         /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
         // Handler de colisão do player                                   ///////////////////////////////////////////////////////////////////////
         /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-        EntityCollisionHandler(player, &(player->entity), enemy, ground, envProps, particlePool, soundPool, msgSystem, delta);
+        EntityCollisionHandler(player, &(player->entity), enemy, ground, envProps, particlePool, soundPool, msgSystem, delta, difficulty);
 
         /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
         // Handler de física e gráfico do player                          ///////////////////////////////////////////////////////////////////////
@@ -1336,7 +1333,7 @@ void UpdatePlayer(Player *player, Enemy *enemy, Bullet *bulletPool, Grenade *gre
     }
 }
 
-void UpdateEnemy(Enemy *enemy, Player *player, Bullet *bulletPool, float delta, Ground *ground, EnvProps *envProps, Sound *soundPool, Particle *particlePool, MSGSystem *msgSystem, int minX) {
+void UpdateEnemy(Enemy *enemy, Player *player, Bullet *bulletPool, float delta, Ground *ground, EnvProps *envProps, Sound *soundPool, Particle *particlePool, MSGSystem *msgSystem, int minX, int difficulty) {
     Entity *eEnt = &(enemy->entity);
     enum CHARACTER_STATE currentLowerState = eEnt->lowerAnimation.currentAnimationState;
     enum CHARACTER_STATE currentUpperState = eEnt->upperAnimation.currentAnimationState;
@@ -1349,12 +1346,14 @@ void UpdateEnemy(Enemy *enemy, Player *player, Bullet *bulletPool, float delta, 
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     // Handler de comportamento do enemy                              ///////////////////////////////////////////////////////////////////////
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    
     SteeringBehavior(enemy, player, &(player->entity), bulletPool, soundPool, particlePool, delta, enemy->class);
     
+
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     // Handler de colisão do enemy                                    ///////////////////////////////////////////////////////////////////////
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    EntityCollisionHandler(player, &(enemy->entity), enemy, ground, envProps, particlePool, soundPool, msgSystem, delta);
+    EntityCollisionHandler(player, &(enemy->entity), enemy, ground, envProps, particlePool, soundPool, msgSystem, delta, difficulty);
 
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     // Handler de física e gráfico do enemy                           ///////////////////////////////////////////////////////////////////////
@@ -1365,7 +1364,7 @@ void UpdateEnemy(Enemy *enemy, Player *player, Bullet *bulletPool, float delta, 
     eEnt->collisionBox = (Rectangle) {eEnt->position.x  - eEnt->width/2 + (eEnt->lowerAnimation.isFacingRight == -1 ? 0.3f : 0.15f) * eEnt->width, eEnt->position.y - eEnt->height/2, eEnt->width * 0.5f, eEnt->height};
     eEnt->collisionHead = (Circle) {(Vector2){eEnt->position.x - eEnt->lowerAnimation.isFacingRight * 0.1f * eEnt->width, eEnt->position.y - 0.15f * eEnt->height}, eEnt->width * 0.2f};
 
-    // Colisão se morto
+    // Handler pós-morte
     if (eEnt->lowerAnimation.currentAnimationState == DYING && currentLowerState != DYING)
         PlaySoundMulti(soundPool[FX_DYING]);
     if (eEnt->lowerAnimation.currentAnimationState == DYING) {
@@ -1394,12 +1393,9 @@ void UpdateBullets(Bullet *bullet, Enemy *enemyPool, Player *player, MSGSystem *
                             bullet->isActive = false;
                             if (curProp->isDestroyable) {
                                 if (GetRandomValue(1,3) == 1) { 
-                                    player->points += curProp->pointsWorth;
-                                    CreateMSG((Vector2) {curProp->drawableRect.x+curProp->drawableRect.width/2, curProp->drawableRect.y}, msgSystem, curProp->pointsWorth);
-                                    curProp->isActive = false;
-                                    curGround->isActive = false;
+                                    DestroyEnvProp(player, enemyPool, envPropsPool, groundsPool, particlePool, soundPool, msgSystem, curProp->id, difficulty);
                                     if (curProp->type == EXPLOSIVE_BARREL) {
-                                        ExplosionAOE(player, msgSystem, envPropsPool, enemyPool, groundsPool, particlePool, soundPool, 150, 150, (Vector2) {curProp->drawableRect.x+curProp->drawableRect.width/2, curProp->drawableRect.y+curProp->drawableRect.height/2}, PLAYER);
+                                        ExplosionAOE(player, msgSystem, envPropsPool, enemyPool, groundsPool, particlePool, soundPool, 150, 150, (Vector2) {curProp->drawableRect.x+curProp->drawableRect.width/2, curProp->drawableRect.y+curProp->drawableRect.height/2}, PLAYER, difficulty);
                                         PlaySoundMulti(soundPool[FX_GRENADE_EXPLOSION]);
                                         CreateParticle((Vector2) {curProp->drawableRect.x+curProp->drawableRect.width/2, curProp->drawableRect.y+curProp->drawableRect.height/2}, (Vector2) {0, 0}, particlePool, SMOKE, 4, 0, (Vector2) {1, 1}, false, 1);
                                         CreateParticle((Vector2) {curProp->drawableRect.x+curProp->drawableRect.width/2, curProp->drawableRect.y+curProp->drawableRect.height/2}, (Vector2) {0, 0}, particlePool, EXPLOSION, 4, 0, (Vector2) {1, 1}, false, 1);
@@ -1511,7 +1507,7 @@ void UpdateBullets(Bullet *bullet, Enemy *enemyPool, Player *player, MSGSystem *
 
 }
 
-void UpdateGrenades(Grenade *grenade, Enemy *enemy, Player *player, MSGSystem *msgSystem, Ground *ground, EnvProps *envProp, Particle *particlePool, Sound *soundPool, float delta) {
+void UpdateGrenades(Grenade *grenade, Enemy *enemy, Player *player, MSGSystem *msgSystem, Ground *ground, EnvProps *envProp, Particle *particlePool, Sound *soundPool, float delta, int difficulty) {
     grenade->lifeTime += delta;
     grenade->animation.timeSinceLastFrame += delta;
     grenade->angle += 5;
@@ -1549,7 +1545,7 @@ void UpdateGrenades(Grenade *grenade, Enemy *enemy, Player *player, MSGSystem *m
                         Vector2 particlePosition = grenade->position;
                         particlePosition.y -= grenade->drawableRect.height/2;
                         PlaySoundMulti(soundPool[FX_GRENADE_EXPLOSION]);
-                        ExplosionAOE(player, msgSystem, envProp, enemy, ground, particlePool, soundPool, 100, 100, grenade->position, PLAYER);
+                        ExplosionAOE(player, msgSystem, envProp, enemy, ground, particlePool, soundPool, 100, 100, grenade->position, PLAYER, difficulty);
                         CreateParticle(grenade->position, (Vector2) {0, 0}, particlePool, SMOKE, 4, 0, (Vector2) {1, 1}, false, 1);
                         CreateParticle(grenade->position, (Vector2) {0, 0}, particlePool, EXPLOSION, 4, 0, (Vector2) {1, 1}, false, 1);
                     }
@@ -1563,7 +1559,7 @@ void UpdateGrenades(Grenade *grenade, Enemy *enemy, Player *player, MSGSystem *m
         grenade->isActive = false;
         Vector2 particlePosition = grenade->position;
         particlePosition.y -= grenade->drawableRect.height/2;
-        ExplosionAOE(player, msgSystem, envProp, enemy, ground, particlePool, soundPool, 100, 100, grenade->position, PLAYER);
+        ExplosionAOE(player, msgSystem, envProp, enemy, ground, particlePool, soundPool, 100, 100, grenade->position, PLAYER, difficulty);
         PlaySoundMulti(soundPool[FX_GRENADE_EXPLOSION]);
         CreateParticle(particlePosition, (Vector2) {0, 0}, particlePool, SMOKE, 4, 0, (Vector2) {1, 1}, false, 1);
         CreateParticle(grenade->position, (Vector2) {0, 0}, particlePool, EXPLOSION, 4, 0, (Vector2) {1, 1}, false, 1);
@@ -1593,6 +1589,7 @@ void UpdateGrenades(Grenade *grenade, Enemy *enemy, Player *player, MSGSystem *m
 }
 
 void UpdateClampedCameraPlayer(Camera2D *camera, Player *player, float delta, int width, int height, float *minX, float *maxX) {
+    // Dinamismo da câmera... zoomOut tá fazendo a tela andar indefinidamente
     /*if (player->entity.velocity.y != 0) //|| player->entity.velocity.y != 0)
         camera->zoom -= delta/20;
     else
@@ -1614,7 +1611,6 @@ void UpdateClampedCameraPlayer(Camera2D *camera, Player *player, float delta, in
     if (max.x < width) camera->offset.x = width - (max.x - width/2);
     if (max.y < height) camera->offset.y = height - (max.y - height/2);
     if (min.x > 0) camera->offset.x = width/2 - min.x;
-    //if (min.y > 0) camera->offset.y = height/2 - min.y;
 
 }
 
@@ -1628,7 +1624,7 @@ void UpdateGrounds(Player *player, Ground *ground, float delta, float minX) {
 
 void UpdateEnvProps(Player *player, Enemy *enemyPool, EnvProps *envPropsPool, Ground *groundsPool, Particle *particlePool, Sound *soundPool, MSGSystem *msgSystem, float delta, float minX) {
     if (envPropsPool->drawableRect.x + envPropsPool->drawableRect.width < minX) 
-        DestroyEnvProp(&player, enemyPool, envPropsPool, groundsPool, particlePool, soundPool, msgSystem, -1);
+        DestroyEnvProp(&player, enemyPool, envPropsPool, groundsPool, particlePool, soundPool, msgSystem, -1, -1);
 }
 
 void UpdateParticles(Particle *curParticle, float delta, float minX) {
@@ -1830,7 +1826,6 @@ void GenerateBackground(RenderTexture2D canvas, Texture atlas, enum BACKGROUND_S
         frameHeight = BACKGROUND_GRID[1];
         buildingRow = BACKGROUND_SKYSCRAPER_ROW;
         offset = 5;
-        //ClearBackground(RAYWHITE);
         for (int i = 0; i < 14; i++) { // totalProps max
             buildingCol = GetRandomValue(0, BACKGROUND_SKYSCRAPER_NUM_TYPES-1); // 4 Tipos
             if (GetRandomValue(1,5) >= 2) // 80% de Gerar
@@ -1893,6 +1888,7 @@ void GenerateForeground(RenderTexture2D canvas, Ground *groundPool, Texture atla
     int isFlipped;
     int style;
     int buildType;
+    bool generateGround;
 
     int willDraw;
     int numOfRows;
@@ -1906,6 +1902,7 @@ void GenerateForeground(RenderTexture2D canvas, Ground *groundPool, Texture atla
             int yOffset = k * (30);
             for (int l = 0; l < (int)(screenWidth/frameWidth)-2; l++) {
                 int xOffset = 10 + l*frameWidth;
+                generateGround = false;
                 buildType = GetRandomValue(1,100);
                 if (buildType < 90 ) {// Gerar prédio
                     overhang = 0;
@@ -1941,6 +1938,9 @@ void GenerateForeground(RenderTexture2D canvas, Ground *groundPool, Texture atla
                                     }
                                 } else { // Casas normais
                                     buildingRow = (GetRandomValue(0,3) == 0 ? 3 : 2); // TODO possibilidades
+                                    if (GetRandomValue(1,100) <= 20) { //3% de chance de gerar um "balcão"
+                                        generateGround = true;
+                                    }
                                 }
                             }
                             if (i == numFloor - 1) { // teto
@@ -1951,6 +1951,12 @@ void GenerateForeground(RenderTexture2D canvas, Ground *groundPool, Texture atla
                             DrawTexturePro(atlas, (Rectangle){style*frameWidth, buildingRow*frameHeight, isFlipped*frameWidth, frameHeight},
                                 (Rectangle){xOffset+j*frameWidth-overhang, (canvas.texture.height - 150) - (i+1)*(frameHeight) - (40 - yOffset), frameWidth+2*overhang, frameHeight}, // deslocado 150 pixels acima do fundo da tela
                                 (Vector2) {0, 0}, 0, WHITE);
+                            if (generateGround) {
+                                CreateGround(groundPool,(Vector2) {xOffset+j*frameWidth-overhang + relativeXPos*canvas.texture.width, (canvas.texture.height - 150) - (i)*(frameHeight)-50 - (40 - yOffset)}, frameWidth+2*overhang, 20, true, false, false, true, false, -1);
+                                DrawTexturePro(atlas, (Rectangle){style*frameWidth, FOREGROUND_ROOF_ROW*frameHeight, isFlipped*frameWidth, frameHeight},
+                                (Rectangle){xOffset+j*frameWidth-overhang, (canvas.texture.height - 150) - (i+1)*(frameHeight) - (40 - yOffset), frameWidth+2*overhang, frameHeight}, // deslocado 150 pixels acima do fundo da tela
+                                (Vector2) {0, 0}, 0, WHITE);
+                            }
                         }
                     }
                 } else { // Gerar chip implant
@@ -1990,28 +1996,26 @@ void GenerateForeground(RenderTexture2D canvas, Ground *groundPool, Texture atla
                 }
             }
         }
-        //if (GetRandomValue(1,2) == 1) { // Tem cerca
         float ratio = (10* (float)frameWidth/ (float) screenWidth);
-            for (int i = 0; i < (int)(screenWidth/frameWidth)+1; i++) {
-                if (i == 0 || i == (int)(screenWidth/frameWidth)) {
-                        DrawTexturePro(atlas, (Rectangle){FOREGROUND_STREET_WALL[0]*frameWidth, FOREGROUND_STREET_WALL[1]*frameHeight,  frameWidth, frameHeight},
-                            (Rectangle){i*frameWidth*0.96f, (screenHeight - frameHeight - 150), frameWidth*0.96f, frameHeight},
-                            (Vector2) {0, 0}, 0, WHITE);
-                    } else {
-                        DrawTexturePro(atlas, (Rectangle){FOREGROUND_FENCE[0]*frameWidth, FOREGROUND_FENCE[1]*frameHeight,  frameWidth, frameHeight},
-                            (Rectangle){i*frameWidth*0.96f, (screenHeight - frameHeight - 150), frameWidth*0.96f, frameHeight},
-                            (Vector2) {0, 0}, 0, WHITE);
+        for (int i = 0; i < (int)(screenWidth/frameWidth)+1; i++) {
+            if (i == 0 || i == (int)(screenWidth/frameWidth)) {
+                    DrawTexturePro(atlas, (Rectangle){FOREGROUND_STREET_WALL[0]*frameWidth, FOREGROUND_STREET_WALL[1]*frameHeight,  frameWidth, frameHeight},
+                        (Rectangle){i*frameWidth*0.96f, (screenHeight - frameHeight - 150), frameWidth*0.96f, frameHeight},
+                        (Vector2) {0, 0}, 0, WHITE);
+                } else {
+                    DrawTexturePro(atlas, (Rectangle){FOREGROUND_FENCE[0]*frameWidth, FOREGROUND_FENCE[1]*frameHeight,  frameWidth, frameHeight},
+                        (Rectangle){i*frameWidth*0.96f, (screenHeight - frameHeight - 150), frameWidth*0.96f, frameHeight},
+                        (Vector2) {0, 0}, 0, WHITE);
 
-                        if (GetRandomValue(1,50) == 1) {
-                            int Col = GetRandomValue(0,FOREGROUND_DECALS[2]-1);
-                            int Row = GetRandomValue(0,FOREGROUND_DECALS[3]-1);
-                            DrawTexturePro(atlas, (Rectangle){(FOREGROUND_DECALS[0]+Col)*frameWidth, (FOREGROUND_DECALS[1]+Row)*frameHeight,  frameWidth, frameHeight},
-                            (Rectangle){i*frameWidth*0.96f + (0.96f*frameWidth)/2 - 0.25f*frameWidth, (screenHeight - 2*frameHeight/3 - 120 - GetRandomValue(30,55)), frameWidth*0.5f, frameHeight*0.5f},
-                            (Vector2) {0, 0}, 0, WHITE);
-                        }
+                    if (GetRandomValue(1,50) == 1) {
+                        int Col = GetRandomValue(0,FOREGROUND_DECALS[2]-1);
+                        int Row = GetRandomValue(0,FOREGROUND_DECALS[3]-1);
+                        DrawTexturePro(atlas, (Rectangle){(FOREGROUND_DECALS[0]+Col)*frameWidth, (FOREGROUND_DECALS[1]+Row)*frameHeight,  frameWidth, frameHeight},
+                        (Rectangle){i*frameWidth*0.96f + (0.96f*frameWidth)/2 - 0.25f*frameWidth, (screenHeight - 2*frameHeight/3 - 120 - GetRandomValue(30,55)), frameWidth*0.5f, frameHeight*0.5f},
+                        (Vector2) {0, 0}, 0, WHITE);
                     }
-            }
-        //}
+                }
+        }
         break;
     default:    
         break;
@@ -2026,7 +2030,7 @@ void GenerateForeground(RenderTexture2D canvas, Ground *groundPool, Texture atla
 
     // Poste
     for (int i = 0; i < 3; i++) {
-        if (i == 1) {
+        if (i == 1) { // Parada de ônibus
             if (GetRandomValue(1,10) == 1) {
                 DrawTexturePro(atlas, (Rectangle){FOREGROUND_BUS_STOP[0]*frameWidth, FOREGROUND_BUS_STOP[1]*frameHeight, frameWidth, frameHeight},
                     (Rectangle){2*frameWidth + i*2*frameWidth , screenHeight - 1.15f*frameHeight - 125, 1.15f*frameWidth, 1.15f*frameHeight},

@@ -8,7 +8,7 @@ int static PLAYER_LEGS_IDLE_NUM_FRAMES = 6;
 int static PLAYER_LEGS_JUMPING_ROW = 1;
 int static PLAYER_LEGS_JUMPING_NUM_FRAMES = 5; // Não conta com o frame de "falling"
 int static PLAYER_LEGS_WALKING_ROW = 2;
-int static PLAYER_LEGS_WALKING_NUM_FRAMES = 6;
+int static PLAYER_LEGS_WALKING_NUM_FRAMES = 8;
 // UPPER são as animações exclusivas a parte superior do player
 int static PLAYER_UPPER_IDLE_ROW = 3;
 int static PLAYER_UPPER_IDLE_NUM_FRAMES = 6;

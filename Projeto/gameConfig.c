@@ -22,11 +22,11 @@ enum PARTICLE_TYPES {EXPLOSION, SMOKE, BLOOD_SPILL, MAGNUM_SHOOT};
 enum SOUNDS {FX_MAGNUM, FX_SWORD, FX_CHANGE_SELECTION, FX_SELECTED, FX_ENTITY_LANDING, FX_GRENADE_LAUNCH, FX_GRENADE_BOUNCING, FX_GRENADE_EXPLOSION, FX_HURT, FX_DYING};
 
 // Consts
-const float GRAVITY = 400; // 400 px / f²
-const float bulletLifeTime = 0.65; // 4 s
-const float grenadeExplosionTime = 2.5f; // 4 s
-const float msgTime = 3; // 4 s
-const float corpseTime = 2; // 4 s
+const float GRAVITY = 400; // px / f²
+const float bulletLifeTime = 0.65; // s
+const float grenadeExplosionTime = 2.5f; // s
+const float msgTime = 3; // s
+const float corpseTime = 2; // s
 const static int numBackgroundRendered = 7;
 const static int maxNumBullets = 100;
 const static int maxNumParticles = 500;
@@ -134,16 +134,6 @@ typedef struct enemy
 
 } Enemy;
 
-
-/**********************************************************************************************
- ** Struct para objetos interativos do cenário                                               **
- ** @rect: Rectangle com informação da posição, largura e altura da parte interativa         **
- ** @canBeStepped:  Bool se a parte superior interage com a flag "isGrounded" das entidades  **
- ** @followCamera:  Bool se a posição em @rect se mantém em relação à câmera                 **
- ** @blockPlayer: Bool se o @rect impede que as entidades passem horizontalmente por "dentro"**
- ** @isInvisible: Bool se o Ground deve ser desenhado na tela                                **
- ** @isActive: Bool de controle se o Ground existe                                           **
- **********************************************************************************************/
 typedef struct ground {
     Rectangle rect;
     bool canBeStepped;
@@ -271,16 +261,16 @@ void CreateGrenade(Entity *entity, Grenade *grenadePool, enum ENTITY_TYPES srcEn
 void CreateParticle(Vector2 srcPosition, Vector2 velocity, Particle *particlePool, enum PARTICLE_TYPES type, float animTime, float angularVelocity, Vector2 scaleRange, bool isLoopable, int facingRight);
 void CreateMSG(Vector2 srcPosition, MSGSystem *msgPool, int value);
 
-void DestroyEnvProp(Player *player, Enemy *enemyPool,EnvProps *envPropsPool, Ground *groundsPool, Particle *particlePool, Sound *soundPool, MSGSystem *msgSystem, int envPropID);
+void DestroyEnvProp(Player *player, Enemy *enemyPool,EnvProps *envPropsPool, Ground *groundsPool, Particle *particlePool, Sound *soundPool, MSGSystem *msgSystem, int envPropID, int difficulty);
 
 void UpdateBackground(Player *player, Background *backgroundPool, int i, Texture2D srcAtlas, Enemy *enemyPool, EnvProps *envPropsPool, Ground *groundPool, float delta, int *numBackground, float minX, float *maxX, int difficulty);
 void UpdateClampedCameraPlayer(Camera2D *camera, Player *player, float delta, int width, int height, float *minX, float *maxX);
-void UpdatePlayer(Player *player, Enemy *enemy, Bullet *bulletPool, Grenade *grenadePool, float delta, Ground *ground, EnvProps *envProps, Particle *particlePool, Sound *soundPool, MSGSystem *msgSystem, float minX);
+void UpdatePlayer(Player *player, Enemy *enemy, Bullet *bulletPool, Grenade *grenadePool, float delta, Ground *ground, EnvProps *envProps, Particle *particlePool, Sound *soundPool, MSGSystem *msgSystem, float minX, int difficulty);
 void UpdateBullets(Bullet *bullet, Enemy *enemyPool, Player *player, MSGSystem *msgSystem, Ground *groundsPool, EnvProps *envPropsPool, Sound *soundPool, Particle *particlePool, float delta, int maxX, int difficulty);
-void UpdateEnemy(Enemy *enemy, Player *player, Bullet *bulletPool, float delta, Ground *ground, EnvProps *envProps, Sound *soundPool, Particle *particlePool, MSGSystem *msgSystem, int minX);
+void UpdateEnemy(Enemy *enemy, Player *player, Bullet *bulletPool, float delta, Ground *ground, EnvProps *envProps, Sound *soundPool, Particle *particlePool, MSGSystem *msgSystem, int minX, int difficulty);
 void UpdateGrounds(Player *player, Ground *ground, float delta, float minX);
 void UpdateEnvProps(Player *player, Enemy *enemyPool, EnvProps *envPropsPool, Ground *groundsPool, Particle *particlePool, Sound *soundPool, MSGSystem *msgSystem, float delta, float minX);
-void UpdateGrenades(Grenade *grenade, Enemy *enemy, Player *player, MSGSystem *msgSystem, Ground *ground, EnvProps *envProp, Particle *particlePool, Sound *soundPool, float delta);
+void UpdateGrenades(Grenade *grenade, Enemy *enemy, Player *player, MSGSystem *msgSystem, Ground *ground, EnvProps *envProp, Particle *particlePool, Sound *soundPool, float delta, int difficulty);
 void UpdateParticles(Particle *particlePool, float delta, float minX);
 void UpdateMSGs(MSGSystem *curMsg, float delta);
 void UpdateDifficulty(int *difficulty, float minX, float time);
@@ -317,6 +307,7 @@ void LookAtTarget(Enemy *enemy) {
 
 void MoveToTarget(Enemy *enemy) {
     LookAtTarget(enemy);
+    enemy->entity.upperAnimation.currentAnimationState = MOVE;
     enemy->entity.momentum.x += 2000;
 }
 
@@ -339,7 +330,6 @@ void AttackTarget(Enemy *enemy, Entity *playerEntity, Bullet *bulletPool, enum E
         PlaySoundMulti(soundPool[FX_HURT]);
         CreateParticle(playerEntity->position, (Vector2) {0,0}, particlePool, BLOOD_SPILL, 2.5f, 0, (Vector2){1,1}, false, enemy->entity.lowerAnimation.isFacingRight);
         playerEntity->currentHP-=30;
-        //HurtEntity(&playerEntity, soundPool, 30);
         break;
     case GUNNER:
         PlaySoundMulti(soundPool[FX_MAGNUM]);
@@ -370,7 +360,7 @@ void SteeringBehavior(Enemy *enemy, Player *player, Entity *playerEntity, Bullet
 
     Rectangle playerBox = (Rectangle) {pEnt->position.x, pEnt->position.y, pEnt->lowerAnimation.animationFrameWidth * pEnt->characterWidthScale, pEnt->lowerAnimation.animationFrameHeight * pEnt->characterHeightScale};
     
-    if ((enemy->entity.lowerAnimation.currentAnimationState != DYING)) {// && (enemy->entity.lowerAnimation.currentAnimationState != HURT)) {
+    if ((enemy->entity.lowerAnimation.currentAnimationState != DYING)) {
         if (CheckCollisionRecs(detectionBox, playerBox)) { // Se houver detecção, setar target
             enemy->noDetectionTime = 0;
             if (enemy->behavior == NONE) { // Se não tiver target
@@ -386,12 +376,10 @@ void SteeringBehavior(Enemy *enemy, Player *player, Entity *playerEntity, Bullet
                         enemy->behavior = MOVE;
                         MoveToTarget(enemy);
                     } else {
-                        if (enemy->timeSinceLastAttack >= 1/enemy->attackSpeed && enemy->entity.lowerAnimation.currentAnimationFrame == 0) {
+                        if (enemy->timeSinceLastAttack >= 1/enemy->attackSpeed && enemy->entity.upperAnimation.currentAnimationFrame == 0) {
                             enemy->timeSinceLastAttack = 0;
                             enemy->behavior = ATTACK;
                             AttackTarget(enemy, playerEntity, bulletPool, enemyClass, soundPool, particlePool);
-                        } else {
-                            //enemy->behavior = NONE;
                         }
                     }
                 } else {
@@ -400,12 +388,10 @@ void SteeringBehavior(Enemy *enemy, Player *player, Entity *playerEntity, Bullet
                         enemy->behavior = MOVE;
                         MoveToTarget(enemy);
                     } else {
-                        if (enemy->timeSinceLastAttack >= 1/enemy->attackSpeed && enemy->entity.lowerAnimation.currentAnimationFrame == 0) {
+                        if (enemy->timeSinceLastAttack >= 1/enemy->attackSpeed && enemy->entity.upperAnimation.currentAnimationFrame == 0) {
                             enemy->timeSinceLastAttack = 0;
                             enemy->behavior = ATTACK;
                             AttackTarget(enemy, playerEntity, bulletPool, enemyClass, soundPool, particlePool);
-                        } else {
-                            //enemy->behavior = NONE;
                         }
                     }
                 }
@@ -502,33 +488,27 @@ void PhysicsAndGraphicsHandlers (Entity *entity, float delta, enum CHARACTER_STA
     // Estados relacionados a movimentação
     if ((entity->lowerAnimation.currentAnimationState != DYING)){//} && (entity->animation.currentAnimationState != HURT)) {
         entity->position.x += entity->velocity.x * delta;
-        //if (entity->animation.currentAnimationState != ATTACKING) {
-            if (entity->isGrounded) {
-                if (entity->velocity.x != 0) {
-                    entity->lowerAnimation.currentAnimationState = WALKING;
-                    if (entity->upperAnimation.currentAnimationState != ATTACKING && entity->upperAnimation.currentAnimationState != THROWING)  
-                        entity->upperAnimation.currentAnimationState = WALKING;
-                } else {
-                    entity->lowerAnimation.currentAnimationState = IDLE;
-                    if (entity->upperAnimation.currentAnimationState != ATTACKING && entity->upperAnimation.currentAnimationState != THROWING)  
-                        entity->upperAnimation.currentAnimationState = IDLE;
-                }
-            } else if (!entity->isGrounded) {
-                if (entity->velocity.y < 0) {
-                    entity->lowerAnimation.currentAnimationState = JUMPING;
-                    if (entity->upperAnimation.currentAnimationState != ATTACKING && entity->upperAnimation.currentAnimationState != THROWING)  
-                        entity->upperAnimation.currentAnimationState = JUMPING;
-                } else if(entity->velocity.y > 0) {
-                    entity->lowerAnimation.currentAnimationState = FALLING;
-                    if (entity->upperAnimation.currentAnimationState != ATTACKING && entity->upperAnimation.currentAnimationState != THROWING)  
-                        entity->upperAnimation.currentAnimationState = FALLING;
-                }
+        if (entity->isGrounded) {
+            if (entity->velocity.x != 0) {
+                entity->lowerAnimation.currentAnimationState = WALKING;
+                if (entity->upperAnimation.currentAnimationState != ATTACKING && entity->upperAnimation.currentAnimationState != THROWING)  
+                    entity->upperAnimation.currentAnimationState = WALKING;
+            } else {
+                entity->lowerAnimation.currentAnimationState = IDLE;
+                if (entity->upperAnimation.currentAnimationState != ATTACKING && entity->upperAnimation.currentAnimationState != THROWING)  
+                    entity->upperAnimation.currentAnimationState = IDLE;
             }
-        //} else {
-
-        //}
-    } else {
-        
+        } else if (!entity->isGrounded) {
+            if (entity->velocity.y < 0) {
+                entity->lowerAnimation.currentAnimationState = JUMPING;
+                if (entity->upperAnimation.currentAnimationState != ATTACKING && entity->upperAnimation.currentAnimationState != THROWING)  
+                    entity->upperAnimation.currentAnimationState = JUMPING;
+            } else if(entity->velocity.y > 0) {
+                entity->lowerAnimation.currentAnimationState = FALLING;
+                if (entity->upperAnimation.currentAnimationState != ATTACKING && entity->upperAnimation.currentAnimationState != THROWING)  
+                    entity->upperAnimation.currentAnimationState = FALLING;
+            }
+        }
     }
     
     // Atualização de estado quando o inimigo morre
@@ -547,6 +527,7 @@ void PhysicsAndGraphicsHandlers (Entity *entity, float delta, enum CHARACTER_STA
 
     int lAnimRow = 0;
     int uAnimRow = 0;
+
 
     if (currentLowerState != lowerAnimation->currentAnimationState) {
         lowerAnimation->timeSinceLastFrame = 0.0f;
@@ -664,7 +645,7 @@ void PhysicsAndGraphicsHandlers (Entity *entity, float delta, enum CHARACTER_STA
             PlayEntityAnimation(entity, delta, upperAnimation, numOfFrames, false, false, -1, true, IDLE);
         } else {
             uAnimRow = entity->UPPER_ATTACKING_ROW;
-            PlayEntityAnimation(entity, delta, lowerAnimation, entity->UPPER_ATTACKING_NUM_FRAMES, false, false, -1, true, IDLE);
+            PlayEntityAnimation(entity, delta, upperAnimation, entity->UPPER_ATTACKING_NUM_FRAMES, false, false, -1, true, IDLE);
         }
         break;
     case DYING:
@@ -691,7 +672,7 @@ void PhysicsAndGraphicsHandlers (Entity *entity, float delta, enum CHARACTER_STA
     entity->upperAnimation.currentAnimationFrameRect.width = entity->lowerAnimation.isFacingRight * entity->upperAnimation.animationFrameWidth;
 }
 
-void EntityCollisionHandler(Player *player, Entity *entity, Enemy *enemyPool, Ground *ground, EnvProps *envProp, Particle *particlePool, Sound *soundPool, MSGSystem *msgSystem, float delta) {
+void EntityCollisionHandler(Player *player, Entity *entity, Enemy *enemyPool, Ground *ground, EnvProps *envProp, Particle *particlePool, Sound *soundPool, MSGSystem *msgSystem, float delta, int difficulty) {
     // Colisão com grounds                                            ///////////////////////////////////////////////////////////////////////
     int hitObstacle = 0;
     bool initIsGrounded = entity->isGrounded; // usado para o som da entidade batendo no chão
@@ -759,8 +740,10 @@ void EntityCollisionHandler(Player *player, Entity *entity, Enemy *enemyPool, Gr
         entity->isGrounded = true;
     }
 
-    if (initIsGrounded != entity->isGrounded && (entity->isGrounded)) {
-        PlaySoundMulti(soundPool[FX_ENTITY_LANDING]);
+    if (abs(player->entity.position.x - entity->position.x) < 1.1f*screenWidth) {
+        if (initIsGrounded != entity->isGrounded && (entity->isGrounded)) {
+            PlaySoundMulti(soundPool[FX_ENTITY_LANDING]);
+        }
     }
 
     // Colisão com Props coletáveis                                  ///////////////////////////////////////////////////////////////////////
@@ -793,7 +776,7 @@ void EntityCollisionHandler(Player *player, Entity *entity, Enemy *enemyPool, Gr
                         default:
                             break;
                         }
-                        DestroyEnvProp(player, enemyPool, envProp, ground, particlePool, soundPool, msgSystem, i);
+                        DestroyEnvProp(player, enemyPool, envProp, ground, particlePool, soundPool, msgSystem, i, difficulty);
                         curProp->isActive = false;
                     }
                 }
@@ -808,7 +791,7 @@ void HurtEntity(Entity *dstEntity, Sound *soundPool, int damage) {
     dstEntity->currentHP -= damage;
 }
 
-void ExplosionAOE(Player *player, MSGSystem *msgSystem, EnvProps *envPropPool, Enemy *enemyPool, Ground *groundPool, Particle *particlePool, Sound *soundPool, int explosionRadius, float energy, Vector2 centerOfExplosion, enum ENTITY_TYPES srcEntity) {
+void ExplosionAOE(Player *player, MSGSystem *msgSystem, EnvProps *envPropPool, Enemy *enemyPool, Ground *groundPool, Particle *particlePool, Sound *soundPool, int explosionRadius, float energy, Vector2 centerOfExplosion, enum ENTITY_TYPES srcEntity, int difficulty) {
     int maxCount = 0;
     maxCount = fmax(maxNumGrounds, maxNumGrenade);
     maxCount = fmax(maxCount, maxNumEnvProps);
@@ -820,7 +803,7 @@ void ExplosionAOE(Player *player, MSGSystem *msgSystem, EnvProps *envPropPool, E
             // Props
             if (curEnvProp->isActive && curEnvProp->isDestroyable) {
                 if (CheckCollisionCircleRec(centerOfExplosion, explosionRadius, curEnvProp->collisionRect)) {
-                    DestroyEnvProp(player, enemyPool, envPropPool, groundPool, particlePool, soundPool, msgSystem, i);
+                    DestroyEnvProp(player, enemyPool, envPropPool, groundPool, particlePool, soundPool, msgSystem, i, difficulty);
                 }
             }
         }
@@ -850,6 +833,10 @@ void PopulateChunk(int chunkId, EnvProps *envPropsPool, Ground *groundPool, Enem
         objAdditions++;
         int obType;
         int clusterType = GetRandomValue(PILE_OF_GARBAGE_S, PILE_OF_CRATE);
+        int rnd;
+        if (GetRandomValue(1,100) <= 3) { // 3% de chance
+            clusterType = COLLECTIBLE;
+        }
 
         int nextObj;
         int numObjRow;
@@ -1114,16 +1101,32 @@ void PopulateChunk(int chunkId, EnvProps *envPropsPool, Ground *groundPool, Enem
                 }
             }
             break;
+        case COLLECTIBLE:
+            numRows = 2;
+            objLim1 = 0;
+            objLim2 = 0;
+            hasAbove = 0;
+            pileMax = 1;
+            xOffset = GetRandomValue(100, 500);
+            numObjRow = GetRandomValue(0,2);
+            obj = (GetRandomValue(1,2) == 1 ? AMMO_CRATE : HP_CRATE);
+            w = 130;
+            h = 130;
+            xPos = chunkId*screenWidth + xOffset + numObjRow*w/2*(GetRandomValue(1,2) == 1 ? -1 : 1);
+            CreateEnvProp(envPropsPool, groundPool, obj, (Vector2) {xPos, rowHei[numObjRow] - h}, w, h);
+            break;
         default:
             break;
         }
     }
 
-    for(int i = 0; i < (difficulty+1); i++){
-        if (GetRandomValue(1,100) <= enemyProb) {
-            enemyAdditions++;
-            int enClass = GetRandomValue(ASSASSIN, GUNNER);
-            CreateEnemy(enemyPool, enClass, (Vector2) {chunkId*screenWidth + GetRandomValue(50, 100) + enemyAdditions*3, screenHeight-1080}, 122, 122);
+    if (chunkId != 0) {
+        for(int i = 0; i < (difficulty+1); i++){
+            if (GetRandomValue(1,100) <= enemyProb) {
+                enemyAdditions++;
+                int enClass = GetRandomValue(ASSASSIN, GUNNER);
+                CreateEnemy(enemyPool, enClass, (Vector2) {chunkId*screenWidth + GetRandomValue(50, 500), screenHeight-GetRandomValue(160,screenHeight)}, 122, 122);
+            }
         }
     }
 }
