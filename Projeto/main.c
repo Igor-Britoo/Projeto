@@ -382,7 +382,6 @@ Menu:
                     }
                 EndMode2D();
 
-                DrawText(TextFormat("Difficulty: %d", difficulty), screenWidth - 300, 20, 40, WHITE);
                 // HUD
                 // Timer
                 int min = (int) (time/60);
