@@ -14,9 +14,10 @@ enum BACKGROUND_TYPES{BACKGROUND, MIDDLEGROUND, FOREGROUND};
 enum BACKGROUND_STYLE{SKYSCRAPER};
 enum MIDDLEGROUND_STYLE{COMPLEX, RED_BUILDING};
 enum FOREGROUND_STYLE{RESIDENTIAL, URBAN_FOREST};
+enum OBJECT_CLUSTER {PILE_OF_GARBAGE_S, PILE_OF_GARBAGE_L, PILE_OF_BARREL_S, PILE_OF_BARREL_L, PILE_OF_CRATE, COLLECTIBLE};
 enum BULLET_TYPE{MAGNUM, SNIPER, LASER};
 enum ENEMY_CLASSES{SWORDSMAN, ASSASSIN, GUNNER, SNIPERSHOOTER, DRONE, TURRET, BOSS};
-enum OBJECTS_TYPES {METAL_CRATE, AMMO_CRATE, HP_CRATE, CARD_CRATE1, CARD_CRATE2, CARD_CRATE3, TRASH_BIN, EXPLOSIVE_BARREL, METAL_BARREL, GARBAGE_BAG1, GARBAGE_BAG2, TRASH_CONTAINER, ROAD_BLOCK};
+enum OBJECTS_TYPES {METAL_CRATE, AMMO_CRATE, HP_CRATE, CARD_CRATE1, CARD_CRATE2, CARD_CRATE3, TRASH_BIN, EXPLOSIVE_BARREL, METAL_BARREL, GARBAGE_BAG1, GARBAGE_BAG2, TRASH_CONTAINER};
 enum PARTICLE_TYPES {EXPLOSION, SMOKE, BLOOD_SPILL, MAGNUM_SHOOT};
 enum SOUNDS {FX_MAGNUM, FX_SWORD, FX_CHANGE_SELECTION, FX_SELECTED, FX_ENTITY_LANDING, FX_GRENADE_LAUNCH, FX_GRENADE_BOUNCING, FX_GRENADE_EXPLOSION, FX_HURT, FX_DYING};
 
@@ -151,7 +152,8 @@ typedef struct ground {
     bool blockPlayer;
     bool isInvisible;
     bool isActive;
-
+    bool isFromObject;
+    enum OBJECTS_TYPES objType;
 } Ground;
 
 
@@ -176,6 +178,8 @@ typedef struct particle {
     Vector2 velocity;
     Rectangle drawableRect;
     Rectangle frameRect;
+    int width;
+    int height;
     enum PARTICLE_TYPES type;
     float animationFrameSpeed;
     int numFrames;
@@ -257,7 +261,7 @@ typedef struct envProps {
 // Headers
 Texture2D CreateTexture(enum BACKGROUND_TYPES bgLayer, Image srcAtlas);
 void CreateBullet(Entity *entity, Bullet *bulletsPool, enum BULLET_TYPE bulletType, enum ENTITY_TYPES srcEntity);
-int CreateGround(Ground *groundPool, Vector2 position, int width, int height, bool canBeStepped, bool followCamera, bool blockPlayer, bool isInvisible);
+int CreateGround(Ground *groundPool, Vector2 position, int width, int height, bool canBeStepped, bool followCamera, bool blockPlayer, bool isInvisible, bool isFromObject, enum OBJECTS_TYPES objType);
 void CreateEnvProp(EnvProps *envPropsPool, Ground *groundPool, enum OBJECTS_TYPES obType, Vector2 position, int width, int height);
 Background CreateBackground(Player *player, Enemy *enemyPool, EnvProps *envPropsPool, Background *backgroundPool, Ground *groundPool, Texture2D srcAtlas, enum BACKGROUND_TYPES bgType, int *numBackground, int id);
 Camera2D CreateCamera (Vector2 target, Vector2 offset, float rotation, float zoom);
@@ -267,15 +271,15 @@ void CreateGrenade(Entity *entity, Grenade *grenadePool, enum ENTITY_TYPES srcEn
 void CreateParticle(Vector2 srcPosition, Vector2 velocity, Particle *particlePool, enum PARTICLE_TYPES type, float animTime, float angularVelocity, Vector2 scaleRange, bool isLoopable, int facingRight);
 void CreateMSG(Vector2 srcPosition, MSGSystem *msgPool, int value);
 
-void DestroyEnvProp(EnvProps *envPropsPool, Ground *groundsPool, int envPropID);
+void DestroyEnvProp(Player *player, Enemy *enemyPool,EnvProps *envPropsPool, Ground *groundsPool, Particle *particlePool, Sound *soundPool, MSGSystem *msgSystem, int envPropID);
 
 void UpdateBackground(Player *player, Background *backgroundPool, int i, Texture2D srcAtlas, Enemy *enemyPool, EnvProps *envPropsPool, Ground *groundPool, float delta, int *numBackground, float minX, float *maxX);
 void UpdateClampedCameraPlayer(Camera2D *camera, Player *player, float delta, int width, int height, float *minX, float *maxX);
-void UpdatePlayer(Player *player, Enemy *enemy, Bullet *bulletPool, Grenade *grenadePool, float delta, Ground *ground, EnvProps *envProps, Sound *soundPool, float minX);
-void UpdateBullets(Bullet *bullet, Enemy *enemy, Player *player, MSGSystem *msgSystem, Ground *ground, EnvProps *envProp, Sound *soundPool, float delta, int maxX);
-void UpdateEnemy(Enemy *enemy, Player *player, Bullet *bulletPool, float delta, Ground *ground, EnvProps *envProps, Sound *soundPool, int minX);
+void UpdatePlayer(Player *player, Enemy *enemy, Bullet *bulletPool, Grenade *grenadePool, float delta, Ground *ground, EnvProps *envProps, Particle *particlePool, Sound *soundPool, MSGSystem *msgSystem, float minX);
+void UpdateBullets(Bullet *bullet, Enemy *enemy, Player *player, MSGSystem *msgSystem, Ground *ground, EnvProps *envProp, Sound *soundPool, Particle *particlePool, float delta, int maxX);
+void UpdateEnemy(Enemy *enemy, Player *player, Bullet *bulletPool, float delta, Ground *ground, EnvProps *envProps, Sound *soundPool, Particle *particlePool, MSGSystem *msgSystem, int minX);
 void UpdateGrounds(Player *player, Ground *ground, float delta, float minX);
-void UpdateEnvProps(Player *player, EnvProps *envPropsPool, Ground *groundsPool, float delta, float minX);
+void UpdateEnvProps(Player *player, Enemy *enemyPool, EnvProps *envPropsPool, Ground *groundsPool, Particle *particlePool, Sound *soundPool, MSGSystem *msgSystem, float delta, float minX);
 void UpdateGrenades(Grenade *grenade, Enemy *enemy, Player *player, MSGSystem *msgSystem, Ground *ground, EnvProps *envProp, Particle *particlePool, Sound *soundPool, float delta);
 void UpdateParticles(Particle *particlePool, float delta, float minX);
 void UpdateMSGs(MSGSystem *curMsg, float delta);
@@ -324,7 +328,7 @@ void KillEnemy(Player *player, Enemy *enemy, MSGSystem *msgSystem) {
     enemy->entity.currentHP = 0;
 }
 
-void AttackTarget(Enemy *enemy, Entity *playerEntity, Bullet *bulletPool, enum ENEMY_CLASSES enemyClass, Sound *soundPool) {
+void AttackTarget(Enemy *enemy, Entity *playerEntity, Bullet *bulletPool, enum ENEMY_CLASSES enemyClass, Sound *soundPool, Particle *particlePool) {
     // Atualizar estado
     LookAtTarget(enemy);
     switch (enemyClass)
@@ -332,6 +336,7 @@ void AttackTarget(Enemy *enemy, Entity *playerEntity, Bullet *bulletPool, enum E
     case ASSASSIN:
         PlaySoundMulti(soundPool[FX_SWORD]);
         PlaySoundMulti(soundPool[FX_HURT]);
+        CreateParticle(playerEntity->position, (Vector2) {0,0}, particlePool, BLOOD_SPILL, 2.5f, 0, (Vector2){1,1}, false, enemy->entity.lowerAnimation.isFacingRight);
         playerEntity->currentHP-=30;
         //HurtEntity(&playerEntity, soundPool, 30);
         break;
@@ -347,7 +352,7 @@ void AttackTarget(Enemy *enemy, Entity *playerEntity, Bullet *bulletPool, enum E
     enemy->entity.velocity.x = 0;
 }
 
-void SteeringBehavior(Enemy *enemy, Player *player, Entity *playerEntity, Bullet *bulletPool, Sound *soundPool, float delta, enum ENEMY_CLASSES enemyClass) {
+void SteeringBehavior(Enemy *enemy, Player *player, Entity *playerEntity, Bullet *bulletPool, Sound *soundPool, Particle *particlePool, float delta, enum ENEMY_CLASSES enemyClass) {
     Entity *eEnt = &(enemy->entity); // Pointer direto para a Entity do inimigo
     Entity *pEnt = &(player->entity); // Pointer direto para a Entity do player
     
@@ -383,7 +388,7 @@ void SteeringBehavior(Enemy *enemy, Player *player, Entity *playerEntity, Bullet
                         if (enemy->timeSinceLastAttack >= 1/enemy->attackSpeed && enemy->entity.lowerAnimation.currentAnimationFrame == 0) {
                             enemy->timeSinceLastAttack = 0;
                             enemy->behavior = ATTACK;
-                            AttackTarget(enemy, playerEntity, bulletPool, enemyClass, soundPool);
+                            AttackTarget(enemy, playerEntity, bulletPool, enemyClass, soundPool, particlePool);
                         } else {
                             //enemy->behavior = NONE;
                         }
@@ -397,7 +402,7 @@ void SteeringBehavior(Enemy *enemy, Player *player, Entity *playerEntity, Bullet
                         if (enemy->timeSinceLastAttack >= 1/enemy->attackSpeed && enemy->entity.lowerAnimation.currentAnimationFrame == 0) {
                             enemy->timeSinceLastAttack = 0;
                             enemy->behavior = ATTACK;
-                            AttackTarget(enemy, playerEntity, bulletPool, enemyClass, soundPool);
+                            AttackTarget(enemy, playerEntity, bulletPool, enemyClass, soundPool, particlePool);
                         } else {
                             //enemy->behavior = NONE;
                         }
@@ -685,7 +690,7 @@ void PhysicsAndGraphicsHandlers (Entity *entity, float delta, enum CHARACTER_STA
     entity->upperAnimation.currentAnimationFrameRect.width = entity->lowerAnimation.isFacingRight * entity->upperAnimation.animationFrameWidth;
 }
 
-void EntityCollisionHandler(Entity *entity, Ground *ground, EnvProps *envProp, Sound *soundPool, float delta) {
+void EntityCollisionHandler(Player *player, Entity *entity, Enemy *enemyPool, Ground *ground, EnvProps *envProp, Particle *particlePool, Sound *soundPool, MSGSystem *msgSystem, float delta) {
     // Colisão com grounds                                            ///////////////////////////////////////////////////////////////////////
     int hitObstacle = 0;
     bool initIsGrounded = entity->isGrounded; // usado para o som da entidade batendo no chão
@@ -772,7 +777,7 @@ void EntityCollisionHandler(Entity *entity, Ground *ground, EnvProps *envProp, S
                         switch (curProp->type) {
                         case AMMO_CRATE:
                             entity->grenadeAmmo += 10;
-                            entity->grenadeAmmo = fmin(entity->grenadeAmmo, 999);
+                            entity->grenadeAmmo = fmin(entity->grenadeAmmo, 100);
                             break;
                         case HP_CRATE:
                             entity->currentHP += 50;
@@ -781,7 +786,7 @@ void EntityCollisionHandler(Entity *entity, Ground *ground, EnvProps *envProp, S
                         default:
                             break;
                         }
-                        DestroyEnvProp(envProp, ground, i);
+                        DestroyEnvProp(player, enemyPool, envProp, ground, particlePool, soundPool, msgSystem, i);
                         curProp->isActive = false;
                     }
                 }
@@ -796,7 +801,7 @@ void HurtEntity(Entity *dstEntity, Sound *soundPool, int damage) {
     dstEntity->currentHP -= damage;
 }
 
-void ExplosionAOE(Player *player, MSGSystem *msgSystem, EnvProps *envPropPool, Enemy *enemyPool, Ground *groundPool, int explosionRadius, float energy, Vector2 centerOfExplosion, enum ENTITY_TYPES srcEntity) {
+void ExplosionAOE(Player *player, MSGSystem *msgSystem, EnvProps *envPropPool, Enemy *enemyPool, Ground *groundPool, Particle *particlePool, Sound *soundPool, int explosionRadius, float energy, Vector2 centerOfExplosion, enum ENTITY_TYPES srcEntity) {
     int maxCount = 0;
     maxCount = fmax(maxNumGrounds, maxNumGrenade);
     maxCount = fmax(maxCount, maxNumEnvProps);
@@ -808,7 +813,7 @@ void ExplosionAOE(Player *player, MSGSystem *msgSystem, EnvProps *envPropPool, E
             // Props
             if (curEnvProp->isActive && curEnvProp->isDestroyable) {
                 if (CheckCollisionCircleRec(centerOfExplosion, explosionRadius, curEnvProp->collisionRect)) {
-                    DestroyEnvProp(envPropPool, groundPool, i);
+                    DestroyEnvProp(player, enemyPool, envPropPool, groundPool, particlePool, soundPool, msgSystem, i);
                 }
             }
         }
@@ -836,15 +841,282 @@ void PopulateChunk(int chunkId, EnvProps *envPropsPool, Ground *groundPool, Enem
     int enemyProb = 70; // 15% de chance de ter um inimigo
     if (GetRandomValue(1,100) <= objProb) {
         objAdditions++;
-        int obType = GetRandomValue(METAL_CRATE, GARBAGE_BAG2);
-        CreateEnvProp(envPropsPool, groundPool, obType, (Vector2) {chunkId*screenWidth + GetRandomValue(5, 10) + objAdditions*200, screenHeight-150-200}, 200, 200);
+        int obType;
+        int clusterType = GetRandomValue(PILE_OF_GARBAGE_S, PILE_OF_CRATE);
+
+        int nextObj;
+        int numObjRow;
+        int xOffset;
+        int numRows = 2;
+        enum OBJECTS_TYPES obj;
+        int w, h;
+        int xPos;
+        int pileMax;
+        int rowHei[3];
+        int objLim1, objLim2;
+        int hasAbove;
+        rowHei[0] = screenHeight - 130;
+        rowHei[1] = screenHeight - 115;
+        rowHei[2] = screenHeight - 105;
+        switch (clusterType)
+        {
+        case PILE_OF_GARBAGE_S:
+            // amontoado pequeno de lixo (saco de lixo e caixa de papelão)
+            numRows = 2;
+            xOffset = GetRandomValue(100, 700);
+            numObjRow = GetRandomValue(1,3);
+            for (int j = 0; j < numRows; j++) {
+                xPos = chunkId*screenWidth + xOffset + j*w/2;
+                for (int i = 0; i < numObjRow; i++) {
+                    nextObj = GetRandomValue(1, 100);
+                    if (nextObj <= 60) { // 60% saco de lixo
+                        obj = GetRandomValue(GARBAGE_BAG1, GARBAGE_BAG2);
+                        w = (obj == GARBAGE_BAG1 ? 100 : 80);
+                        h = (obj == GARBAGE_BAG1 ? 100 : 80);
+                    } else {
+                        obj = GetRandomValue(CARD_CRATE1, CARD_CRATE3);
+                        w = 130;
+                        h = 130;
+                    }
+                    CreateEnvProp(envPropsPool, groundPool, obj, (Vector2) {xPos, rowHei[j] - h}, w, h);
+                    xPos+=w;
+                }
+            }
+            break;
+        case PILE_OF_GARBAGE_L:
+            numRows = 2;
+            objLim1 = 0;
+            objLim2 = 0;
+            xOffset = GetRandomValue(100, 500);
+            numObjRow = GetRandomValue(2,4);
+            for (int j = 0; j < numRows; j++) {
+                xPos = chunkId*screenWidth + xOffset + j*w/2;
+                for (int i = 0; i < numObjRow; i++) {
+                    nextObj = GetRandomValue(1, 100);
+                    if (j == 0) {
+                        if (nextObj <= 35) { // 20% container
+                            if (objLim1 < 1) {
+                                obj = TRASH_CONTAINER;
+                                w = 220;
+                                h = 220;
+                            } else {
+                                if (GetRandomValue(1,2) == 1) {
+                                    obj = GetRandomValue(GARBAGE_BAG1, GARBAGE_BAG2);
+                                    w = (obj == GARBAGE_BAG1 ? 100 : 80);
+                                    h = (obj == GARBAGE_BAG1 ? 100 : 80);
+                                } else {
+                                    obj = GetRandomValue(CARD_CRATE1, CARD_CRATE3);
+                                    w = 130;
+                                    h = 130;
+                                }
+                            }
+                        } else if (nextObj <= 60) { // 40% lata de lixo
+                            obj = TRASH_BIN;
+                            w = 130;
+                            h = 130;
+                        } else {
+                            if (GetRandomValue(1,2) == 1) {
+                                obj = GetRandomValue(GARBAGE_BAG1, GARBAGE_BAG2);
+                                w = (obj == GARBAGE_BAG1 ? 100 : 80);
+                                h = (obj == GARBAGE_BAG1 ? 100 : 80);
+                            } else {
+                                obj = GetRandomValue(CARD_CRATE1, CARD_CRATE3);
+                                w = 130;
+                                h = 130;
+                            }
+                        }
+                    } else {
+                        if (nextObj <= 40) { // 40% lata de lixo
+                            if (objLim2 < 2) {
+                                obj = TRASH_BIN;
+                                w = 130;
+                                h = 130;
+                            } else {
+                                if (GetRandomValue(1,2) == 1) {
+                                    obj = GetRandomValue(GARBAGE_BAG1, GARBAGE_BAG2);
+                                    w = (obj == GARBAGE_BAG1 ? 100 : 80);
+                                    h = (obj == GARBAGE_BAG1 ? 100 : 80);
+                                } else {
+                                    obj = GetRandomValue(CARD_CRATE1, CARD_CRATE3);
+                                    w = 130;
+                                    h = 130;
+                                }
+                            }
+                        } else {
+                            if (GetRandomValue(1,2) == 1) {
+                                obj = GetRandomValue(GARBAGE_BAG1, GARBAGE_BAG2);
+                                w = (obj == GARBAGE_BAG1 ? 100 : 80);
+                                h = (obj == GARBAGE_BAG1 ? 100 : 80);
+                            } else {
+                                obj = GetRandomValue(CARD_CRATE1, CARD_CRATE3);
+                                w = 130;
+                                h = 130;
+                            }
+                        }
+                    }
+                    CreateEnvProp(envPropsPool, groundPool, obj, (Vector2) {xPos, rowHei[j] - h}, w, h);
+                    if (obj == TRASH_CONTAINER) objLim1 = 1;
+                    if (obj == TRASH_BIN) objLim2++;
+                    xPos+=w;
+                }
+            }
+            break;
+        case PILE_OF_BARREL_S:
+            numRows = 2;
+            objLim1 = 0;
+            objLim2 = 0;
+            xOffset = GetRandomValue(100, 500);
+            numObjRow = GetRandomValue(1,2);
+            for (int j = 0; j < numRows; j++) {
+                xPos = chunkId*screenWidth + xOffset + j*w/2;
+                for (int i = 0; i < numObjRow+j; i++) {
+                    nextObj = GetRandomValue(1, 100);
+                    if (nextObj <= 10) { // 10% explosivo
+                        if (objLim1 < 1) {
+                            obj = EXPLOSIVE_BARREL;
+                            w = 130;
+                            h = 130;
+                        } else {
+                            if (GetRandomValue(1,2) == 1) {
+                                obj = GetRandomValue(GARBAGE_BAG1, GARBAGE_BAG2);
+                                w = (obj == GARBAGE_BAG1 ? 100 : 80);
+                                h = (obj == GARBAGE_BAG1 ? 100 : 80);
+                            } else {
+                                obj = GetRandomValue(CARD_CRATE1, CARD_CRATE3);
+                                w = 130;
+                                h = 130;
+                            }
+                        }
+                    } else if (nextObj <= 80) { // 70% metal
+                        obj = METAL_BARREL;
+                        w = 140;
+                        h = 140;
+                    } else if (nextObj <= 90) { // deixando 10% sem nada
+                        if (GetRandomValue(1,2) == 1) {
+                            obj = GetRandomValue(GARBAGE_BAG1, GARBAGE_BAG2);
+                            w = (obj == GARBAGE_BAG1 ? 100 : 80);
+                            h = (obj == GARBAGE_BAG1 ? 100 : 80);
+                        } else {
+                            obj = GetRandomValue(CARD_CRATE1, CARD_CRATE3);
+                            w = 130;
+                            h = 130;
+                        }
+                    } else {
+                        obj = -1;
+                    }
+                    if (obj != -1) CreateEnvProp(envPropsPool, groundPool, obj, (Vector2) {xPos, rowHei[j] - h}, w, h);
+                    if (obj == EXPLOSIVE_BARREL) objLim1 = 1;
+                    xPos+=w;
+                }
+            }
+            break;
+        case PILE_OF_BARREL_L:
+            numRows = 3;
+            objLim1 = 0;
+            objLim2 = 0;
+            xOffset = GetRandomValue(100, 500);
+            numObjRow = GetRandomValue(1,2);
+            for (int j = 0; j < numRows; j++) {
+                xPos = chunkId*screenWidth + xOffset + j*w/2*(GetRandomValue(1,2) == 1 ? -1 : 1);
+                for (int i = 0; i < numObjRow; i++) {
+                    nextObj = GetRandomValue(1, 100);
+                    if (nextObj <= 20) { // 20% explosivo
+                        if (objLim1 < 1) {
+                            obj = EXPLOSIVE_BARREL;
+                            w = 130;
+                            h = 130;
+                        } else {
+                            if (GetRandomValue(1,2) == 1) {
+                                obj = GetRandomValue(GARBAGE_BAG1, GARBAGE_BAG2);
+                                w = (obj == GARBAGE_BAG1 ? 100 : 80);
+                                h = (obj == GARBAGE_BAG1 ? 100 : 80);
+                            } else {
+                                obj = GetRandomValue(CARD_CRATE1, CARD_CRATE3);
+                                w = 130;
+                                h = 130;
+                            }
+                        }
+                    } else if (nextObj <= 80) { // 60% metal
+                        obj = METAL_BARREL;
+                        w = 140;
+                        h = 140;
+                    } else if (nextObj <= 90) { // deixando 10% sem nada
+                        if (GetRandomValue(1,2) == 1) {
+                            obj = GetRandomValue(GARBAGE_BAG1, GARBAGE_BAG2);
+                            w = (obj == GARBAGE_BAG1 ? 100 : 80);
+                            h = (obj == GARBAGE_BAG1 ? 100 : 80);
+                        } else {
+                            obj = GetRandomValue(CARD_CRATE1, CARD_CRATE3);
+                            w = 130;
+                            h = 130;
+                        }
+                    } else {
+                        obj = -1;
+                    }
+                    if (obj != -1) CreateEnvProp(envPropsPool, groundPool, obj, (Vector2) {xPos, rowHei[j] - h}, w, h);
+                    if (obj == EXPLOSIVE_BARREL) objLim1 = 1;
+                    xPos+=w;
+                }
+            }
+            break;
+        case PILE_OF_CRATE:
+            numRows = 2;
+            objLim1 = 0;
+            objLim2 = 0;
+            hasAbove = 0;
+            pileMax = 1;
+            xOffset = GetRandomValue(100, 500);
+            numObjRow = GetRandomValue(1,2);
+            if (GetRandomValue(1,4) < 2) {
+                pileMax++;
+            }
+            for (int j = 0; j < numRows; j++) {
+            xPos = chunkId*screenWidth + xOffset + j*w/2*(GetRandomValue(1,2) == 1 ? -1 : 1);
+                for (int i = 0; i < numObjRow; i++) {
+                    hasAbove = 0;
+                    nextObj = GetRandomValue(1, 100);
+                        if (nextObj <= 40) { // 40% de ter a caixa
+                            obj = METAL_CRATE;
+                            w = 130;
+                            h = 130;
+                            if (pileMax == 2) {
+                                if (GetRandomValue(1,5) < 5) {
+                                    hasAbove = 1;
+                                }
+                            }
+                        } else if (nextObj <= 80) { // 40% de ter o barril
+                            obj = METAL_BARREL;
+                            w = 140;
+                            h = 140;
+                            if (pileMax == 2) {
+                                if (GetRandomValue(1,5) < 5) {
+                                    hasAbove = 1;
+                                }
+                            }
+                        } else {
+                            obj = -1;
+                        }
+                    if (obj != -1) {
+                        CreateEnvProp(envPropsPool, groundPool, obj, (Vector2) {xPos, rowHei[j] - h}, w, h);
+                        if (hasAbove == 1) {
+                            if (j == 0) {
+                                CreateEnvProp(envPropsPool, groundPool, obj, (Vector2) {xPos, rowHei[j] - 2*h-2}, w, h);
+                            }
+                        }
+                    } 
+                }
+            }
+            break;
+        default:
+            break;
+        }
     }
 
     for(int i = 0; i < (difficulty+1); i++){
         if (GetRandomValue(1,100) <= enemyProb) {
             enemyAdditions++;
             int enClass = GetRandomValue(ASSASSIN, GUNNER);
-            //CreateEnemy(enemyPool, enClass, (Vector2) {chunkId*screenWidth + GetRandomValue(50, 100) + enemyAdditions*3, screenHeight-1080}, 122, 122);
+            CreateEnemy(enemyPool, enClass, (Vector2) {chunkId*screenWidth + GetRandomValue(50, 100) + enemyAdditions*3, screenHeight-1080}, 122, 122);
         }
     }
 }
