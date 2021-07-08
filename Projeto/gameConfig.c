@@ -37,9 +37,9 @@ const static int maxNumEnvProps = 50;
 const static int maxNumMSGs = 50;
 const static int numEnemyClasses = 6;
 const int screenWidth = 1920;
-const int screenHeight = 1000;
+const int screenHeight = 1080;
 const char gameName[30] = "Project N30-N";
-bool isFullscreen = false;
+bool isFullscreen = true;
 
 // Structs
 typedef struct circle {
