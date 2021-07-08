@@ -588,7 +588,7 @@ Player CreatePlayer (int maxHP, Vector2 position, int width, int height) {
     newPlayer.entity.sprintSpeed = 800;
     newPlayer.entity.jumpSpeed = 250;
     newPlayer.entity.isGrounded = false;
-    newPlayer.entity.eyesOffset = (Vector2) {55, 40};
+    newPlayer.entity.eyesOffset = (Vector2) {55, 0};
     newPlayer.entity.type = PLAYER;
     newPlayer.points = 0;
 
@@ -724,7 +724,7 @@ void CreateEnemy(Enemy *enemyPool, enum ENEMY_CLASSES class, Vector2 position, i
                     break;
                 case ASSASSIN:
                     newEnemy->viewDistance = 600;
-                    newEnemy->attackRange = 50;
+                    newEnemy->attackRange = 15;
                     newEnemy->attackSpeed = 0.8f; // Ataques por segundo
                     newEnemy->entity.GRID[0] = ASSASSIN_GRID[0];
                     newEnemy->entity.GRID[1] = ASSASSIN_GRID[1];
@@ -744,8 +744,9 @@ void CreateEnemy(Enemy *enemyPool, enum ENEMY_CLASSES class, Vector2 position, i
                     break;
                 case GUNNER:
                     newEnemy->viewDistance = 600;
-                    newEnemy->attackRange = 200;
-                    newEnemy->attackSpeed = 1.3f; // Ataques por segundo
+                    newEnemy->attackRange = 400;
+                    newEnemy->entity.eyesOffset = (Vector2) {55, 25};
+                    newEnemy->attackSpeed = 2; // Ataques por segundo
                     newEnemy->entity.GRID[0] = GUNNER_GRID[0];
                     newEnemy->entity.GRID[1] = GUNNER_GRID[1];
                     newEnemy->entity.LEGS_IDLE_ROW = GUNNER_LEGS_IDLE_ROW;
@@ -879,7 +880,7 @@ void CreateBullet(Entity *entity, Bullet *bulletsPool, enum BULLET_TYPE bulletTy
             
             float offset = 0;
             bullet_i->position.x = entity->position.x + bullet_i->direction.x * offset * entity->width;
-            bullet_i->position.y = entity->position.y; // Ajustar TODO
+            bullet_i->position.y = entity->position.y + entity->eyesOffset.y; // Ajustar TODO
             
             bullet_i->width = 20; // Tem que tunar
             bullet_i->height = 7; // Tem que tunar

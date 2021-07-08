@@ -376,10 +376,12 @@ void SteeringBehavior(Enemy *enemy, Player *player, Entity *playerEntity, Bullet
                         enemy->behavior = MOVE;
                         MoveToTarget(enemy);
                     } else {
-                        if (enemy->timeSinceLastAttack >= 1/enemy->attackSpeed && enemy->entity.upperAnimation.currentAnimationFrame == 0) {
-                            enemy->timeSinceLastAttack = 0;
-                            enemy->behavior = ATTACK;
-                            AttackTarget(enemy, playerEntity, bulletPool, enemyClass, soundPool, particlePool);
+                        if (pEnt->lowerAnimation.currentAnimationState != DYING) {
+                            if (enemy->timeSinceLastAttack >= 1/enemy->attackSpeed && enemy->entity.upperAnimation.currentAnimationFrame == 0) {
+                                enemy->timeSinceLastAttack = 0;
+                                enemy->behavior = ATTACK;
+                                AttackTarget(enemy, playerEntity, bulletPool, enemyClass, soundPool, particlePool);
+                            }
                         }
                     }
                 } else {
@@ -388,10 +390,12 @@ void SteeringBehavior(Enemy *enemy, Player *player, Entity *playerEntity, Bullet
                         enemy->behavior = MOVE;
                         MoveToTarget(enemy);
                     } else {
-                        if (enemy->timeSinceLastAttack >= 1/enemy->attackSpeed && enemy->entity.upperAnimation.currentAnimationFrame == 0) {
-                            enemy->timeSinceLastAttack = 0;
-                            enemy->behavior = ATTACK;
-                            AttackTarget(enemy, playerEntity, bulletPool, enemyClass, soundPool, particlePool);
+                        if (pEnt->lowerAnimation.currentAnimationState != DYING) {
+                            if (enemy->timeSinceLastAttack >= 1/enemy->attackSpeed && enemy->entity.upperAnimation.currentAnimationFrame == 0) {
+                                enemy->timeSinceLastAttack = 0;
+                                enemy->behavior = ATTACK;
+                                AttackTarget(enemy, playerEntity, bulletPool, enemyClass, soundPool, particlePool);
+                            }
                         }
                     }
                 }
