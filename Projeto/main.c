@@ -583,7 +583,7 @@ Player CreatePlayer (int maxHP, Vector2 position, int width, int height) {
     newPlayer.entity.momentum.x = 0.0f;
     newPlayer.entity.momentum.y = 0.0f;
     newPlayer.entity.grenadeAmmo = 0;
-    newPlayer.entity.magnumAmmo = 400;
+    newPlayer.entity.magnumAmmo = 350;
     newPlayer.entity.maxXSpeed = 400;
     newPlayer.entity.sprintSpeed = 800;
     newPlayer.entity.jumpSpeed = 250;
@@ -726,6 +726,7 @@ void CreateEnemy(Enemy *enemyPool, enum ENEMY_CLASSES class, Vector2 position, i
                     newEnemy->viewDistance = 600;
                     newEnemy->attackRange = 15;
                     newEnemy->attackSpeed = 0.8f; // Ataques por segundo
+                    newEnemy->entity.maxXSpeed = 300;
                     newEnemy->entity.GRID[0] = ASSASSIN_GRID[0];
                     newEnemy->entity.GRID[1] = ASSASSIN_GRID[1];
                     newEnemy->entity.LEGS_IDLE_ROW = ASSASSIN_LEGS_IDLE_ROW;

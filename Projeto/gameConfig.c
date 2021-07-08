@@ -22,7 +22,7 @@ enum PARTICLE_TYPES {EXPLOSION, SMOKE, BLOOD_SPILL, MAGNUM_SHOOT};
 enum SOUNDS {FX_MAGNUM, FX_SWORD, FX_CHANGE_SELECTION, FX_SELECTED, FX_ENTITY_LANDING, FX_GRENADE_LAUNCH, FX_GRENADE_BOUNCING, FX_GRENADE_EXPLOSION, FX_HURT, FX_DYING};
 
 // Consts
-const float GRAVITY = 400; // px / f²
+const float GRAVITY = 600; // px / f²
 const float bulletLifeTime = 0.65; // s
 const float grenadeExplosionTime = 2.5f; // s
 const float msgTime = 3; // s
