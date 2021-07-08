@@ -27,7 +27,7 @@ int main(void) {
     enemyTex[BOSS] = LoadTexture("resources/Atlas/hero_atlas_div.png");
 
     InitAudioDevice();              // Initialize audio device
-    SetMasterVolume(0.1f);
+    SetMasterVolume(0.3f);
     Music ambience = LoadMusicStream("resources/Audio/ambience.mp3");
     Sound *fxSoundPool = (Sound *)malloc(10*sizeof(Sound));
     fxSoundPool[FX_MAGNUM] = LoadSound("resources/Audio/magnumShot.ogg"); 
@@ -49,7 +49,8 @@ int main(void) {
     PlayMusicStream(ambience);
 
     // MENU
-    Texture2D logo = LoadTexture("resources/Menu/menu_logo.png");
+    Texture2D menuBackground = LoadTexture("resources/Menu/menu_fundo.png");
+    Texture2D logo = LoadTexture("resources/Menu/logo.png");
     int currentOption = 1;
     int nextScreen = -1;
     bool changeScreen = false;
@@ -100,7 +101,8 @@ Menu:
             
             BeginDrawing();
                 ClearBackground(GetColor(0x052c46ff));
-                DrawTexturePro(logo, (Rectangle){0, 0, logo.width, logo.height}, (Rectangle){0, 0, screenWidth, screenHeight}, (Vector2) {0, 0}, 0, WHITE);
+                DrawTexturePro(menuBackground, (Rectangle){0, 0, menuBackground.width, menuBackground.height}, (Rectangle){0, 0, screenWidth, screenHeight}, (Vector2) {0, 0}, 0, WHITE);
+                DrawTexturePro(logo, (Rectangle){0, 0, logo.width, logo.height}, (Rectangle){(screenWidth - logo.width)/2, (screenHeight - logo.height)/2, logo.width, logo.height}, (Vector2) {0, 0}, 0, WHITE);
                 DrawText("START GAME", screenWidth/2 - MeasureText("START GAME", 40)/2, screenHeight/2 + 150, 40,(currentOption == 1 ? YELLOW : WHITE));
                 DrawText("HIGHSCORES", screenWidth/2 - MeasureText("HIGHSCORES", 40)/2, screenHeight/2 + 200, 40,(currentOption == 2 ? YELLOW : WHITE));
                 DrawText("EXIT", screenWidth/2 - MeasureText("EXIT", 40)/2, screenHeight/2 + 250, 40,(currentOption == 3 ? YELLOW : WHITE));
@@ -131,6 +133,7 @@ Menu:
 
             BeginDrawing();
                 ClearBackground(GetColor(0x052c46ff));
+                DrawTexturePro(menuBackground, (Rectangle){0, 0, menuBackground.width, menuBackground.height}, (Rectangle){0, 0, screenWidth, screenHeight}, (Vector2) {0, 0}, 0, WHITE);
                 int pos = 0;
                     DrawText("HIGHSCORES",screenWidth/2 - MeasureText("HIGHSCORES", 70)/2, 60, 70, WHITE);
                 for (int i = 0; i < 10; i+=2) {
@@ -218,9 +221,9 @@ Menu:
     
     // Criar chunks
     for (int i = 0; i < numBackgroundRendered; i++) {
-        farBackgroundPool[i] = CreateBackground(&player, enemyPool, envPropsPool, farBackgroundPool, groundPool, backgroundAtlas, BACKGROUND, &numFarBackground, i);
-        middleBackgroundPool[i] = CreateBackground(&player, enemyPool, envPropsPool, middleBackgroundPool, groundPool, midgroundAtlas, MIDDLEGROUND, &numMiddleBackground, i);
-        nearBackgroundPool[i] = CreateBackground(&player, enemyPool, envPropsPool, nearBackgroundPool, groundPool, foregroundAtlas, FOREGROUND, &numNearBackground, i);
+        farBackgroundPool[i] = CreateBackground(&player, enemyPool, envPropsPool, farBackgroundPool, groundPool, backgroundAtlas, BACKGROUND, &numFarBackground, i, difficulty);
+        middleBackgroundPool[i] = CreateBackground(&player, enemyPool, envPropsPool, middleBackgroundPool, groundPool, midgroundAtlas, MIDDLEGROUND, &numMiddleBackground, i, difficulty);
+        nearBackgroundPool[i] = CreateBackground(&player, enemyPool, envPropsPool, nearBackgroundPool, groundPool, foregroundAtlas, FOREGROUND, &numNearBackground, i, difficulty);
     }
 
 
@@ -231,6 +234,7 @@ Menu:
     while (!WindowShouldClose()) {
         framesCounter++;
         UpdateMusicStream(ambience);   // Update music buffer with new stream data
+        UpdateDifficulty(&difficulty, camMinX, time);
 
         // Game State
         if (IsKeyPressed(KEY_ESCAPE)) {
@@ -240,8 +244,6 @@ Menu:
                 currentOption = 1;
             }
         }
-
-        if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) CreateParticle(GetMousePosition(), (Vector2) {0,0}, particlePool, BLOOD_SPILL, 3, 0, (Vector2){1,1}, false, 1);
 
         // Verificar Game Over
         if (player.entity.lowerAnimation.currentAnimationState == DEAD) {
@@ -263,12 +265,12 @@ Menu:
 
                 for (int i = 0; i < maxNumEnemies; i++) {
                     if (enemyPool[i].isAlive) 
-                        UpdateEnemy(&enemyPool[i], &player, bulletsPool, deltaTime, groundPool, envPropsPool, fxSoundPool, particlePool, msgPool, camMinX);
+                        UpdateEnemy(&enemyPool[i], &player, bulletsPool, deltaTime, groundPool, envPropsPool, fxSoundPool, particlePool, msgPool, camMinX, difficulty, time);
                 }
 
                 for (int i = 0; i < maxNumBullets; i++) {
                     if (bulletsPool[i].isActive) 
-                        UpdateBullets(&bulletsPool[i], enemyPool, &player, msgPool, groundPool, envPropsPool, fxSoundPool, particlePool,deltaTime, camMaxX);
+                        UpdateBullets(&bulletsPool[i], enemyPool, &player, msgPool, groundPool, envPropsPool, fxSoundPool, particlePool, deltaTime, camMaxX, difficulty);
                 }
 
                 for (int i = 0; i < maxNumGrenade; i++) {
@@ -283,7 +285,7 @@ Menu:
 
                 for (int i = 0; i < maxNumEnvProps; i++) {
                     if (envPropsPool[i].isActive)
-                        UpdateEnvProps(&player, enemyPool, &envPropsPool[i], groundPool, particlePool, fxSoundPool, msgPool, deltaTime, camMinX);
+                        UpdateEnvProps(&player, enemyPool, &envPropsPool[i], groundPool, particlePool, fxSoundPool, msgPool, deltaTime, camMinX, difficulty, time);
                 }
 
                 for (int i = 0; i < maxNumParticles; i++) {
@@ -297,9 +299,9 @@ Menu:
                 }
 
                 for (int i = 0; i < numBackgroundRendered; i++) {
-                    UpdateBackground(&player, nearBackgroundPool, i, foregroundAtlas, enemyPool, envPropsPool, groundPool, deltaTime, &numNearBackground, camMinX, &camMaxX);
-                    UpdateBackground(&player, middleBackgroundPool, i, midgroundAtlas, enemyPool, envPropsPool, groundPool, deltaTime, &numMiddleBackground, camMinX, &camMaxX);
-                    UpdateBackground(&player, farBackgroundPool, i, backgroundAtlas, enemyPool, envPropsPool, groundPool, deltaTime, &numFarBackground, camMinX, &camMaxX);
+                    UpdateBackground(&player, nearBackgroundPool, i, foregroundAtlas, enemyPool, envPropsPool, groundPool, deltaTime, &numNearBackground, camMinX, &camMaxX, difficulty);
+                    UpdateBackground(&player, middleBackgroundPool, i, midgroundAtlas, enemyPool, envPropsPool, groundPool, deltaTime, &numMiddleBackground, camMinX, &camMaxX, difficulty);
+                    UpdateBackground(&player, farBackgroundPool, i, backgroundAtlas, enemyPool, envPropsPool, groundPool, deltaTime, &numFarBackground, camMinX, &camMaxX, difficulty);
                 }
             
 
@@ -307,221 +309,187 @@ Menu:
 
 
         // Draw cycle
-            
-            if (gameState == ACTIVE || gameState == PAUSE) {
-                BeginDrawing();
-                    ClearBackground(GetColor(0x052c46ff));
-                    BeginMode2D(camera);
-                        ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-                        ///////////////////////// OS BACKGROUNDS PRECISAM SER DESENHADOS ANTES DE QUALQUER COISA
-                        ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-                        
-                        // Desenhar os backgrounds
-                        for (int i = 0; i < numBackgroundRendered; i++) {
-                            DrawTextureRec(farBackgroundPool[i].canvas.texture, (Rectangle) { 0, 0, (float)farBackgroundPool[i].canvas.texture.width, (float)-farBackgroundPool[i].canvas.texture.height },
-                            (Vector2) { farBackgroundPool[i].position.x, farBackgroundPool[i].position.y }, WHITE);
-                        }       
-                        // Desenhar os middlegrounds
-                        for (int i = 0; i < numBackgroundRendered; i++) {
-                            DrawTextureRec(middleBackgroundPool[i].canvas.texture, (Rectangle) { 0, 0, (float)middleBackgroundPool[i].canvas.texture.width, (float)-middleBackgroundPool[i].canvas.texture.height },
-                            (Vector2) { middleBackgroundPool[i].position.x, middleBackgroundPool[i].position.y }, WHITE);
-                        }       
-                        // Desenhar os foregrounds
-                        for (int i = 0; i < numBackgroundRendered; i++) {
-                            DrawTextureRec(nearBackgroundPool[i].canvas.texture, (Rectangle) { 0, 0, (float)nearBackgroundPool[i].canvas.texture.width, (float)-nearBackgroundPool[i].canvas.texture.height },
-                            (Vector2) { nearBackgroundPool[i].position.x, nearBackgroundPool[i].position.y }, WHITE);
-                        }
-
-                        ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-                        ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-                        ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////   
-
-                        
-                        for (int i = 0; i < maxNumGrounds; i++) {
-                            if (groundPool[i].isActive)
-                                if (!groundPool[i].isInvisible)
-                                    DrawRectangleRec(groundPool[i].rect, WHITE);
-                        }
-
-                        for (int i = 0; i < maxNumEnvProps; i++) {
-                            if (envPropsPool[i].isActive) {
-                                DrawTexturePro(envPropsAtlas, envPropsPool[i].frameRect, envPropsPool[i].drawableRect, (Vector2) {0, 0}, 0, WHITE);
-                            }
-                        }
-
-                        for (int i = 0; i < maxNumEnemies; i++) {
-                            if (enemyPool[i].isAlive) 
-                                DrawEnemy(&enemyPool[i], enemyTex, false, false, false); //enemypool, enemytex, detecção, vida, colisão
-                        }
-
-                        for (int i = 0; i < maxNumBullets; i++) {
-                            if (bulletsPool[i].isActive) 
-                                DrawBullet(&bulletsPool[i], miscAtlas, false); //bulletspool, miscAtlas, colisão                        
-                        }
-
-                        for (int i = 0; i < maxNumGrenade; i++) {
-                            if (grenadesPool[i].isActive)
-                                DrawGrenade(&grenadesPool[i], miscAtlas, false); //grenadespool, miscAtlas, colisão      
-                        }
-
-                        // Draw player
-                        DrawPlayer(&player, characterTexDiv, false);
-
-                        for (int i = 0; i < maxNumParticles; i++) {
-                            if (particlePool[i].isActive) 
-                                DrawParticle(&particlePool[i], miscAtlas); //grenadespool, miscAtlas                        
-                        }
-
-                        // Msgs acima de tudo
-                        for (int i = 0; i < maxNumMSGs; i++) {
-                            if (msgPool[i].isActive) 
-                                DrawMSG(&msgPool[i]); 
-
-                        }
-                    EndMode2D();
-
-                    //Chão
-                    //DrawRectangle(0, screenHeight-150, screenWidth, 150, LIGHTGRAY);
+        
+        if (gameState == ACTIVE || gameState == PAUSE) {
+            BeginDrawing();
+                ClearBackground(GetColor(0x052c46ff));
+                BeginMode2D(camera);
+                    ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+                    ///////////////////////// OS BACKGROUNDS PRECISAM SER DESENHADOS ANTES DE QUALQUER COISA
+                    ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
                     
-                    DrawFPS(screenWidth-200, 0);
-
-                    // HUD
-                    // Timer
-                    char timer[10] = "";
-                    char temp[10] = "";
-                    int min = (int) (time/60);
-                    int sec = time - min*60;
-                    if (min < 10)
-                        strcat(timer, "0");
-                    sprintf(temp, "%d", min);
-                    strcat(timer, temp);
-                    strcat(timer, ":");
-                    if (sec < 10)
-                        strcat(timer, "0");
-                    sprintf(temp, "%d", sec);
-                    strcat(timer, temp);
-                    DrawText(timer, screenWidth/2 - 40*5/2, 20, 40, WHITE);
-                    
-                    // Player HP
-                    int HPBarWidth = 250;
-                    float percentHP = ((float) player.entity.currentHP / (float) player.entity.maxHP);
-                    int currentHPBarWidth = percentHP * HPBarWidth;
-                    DrawRectangle(7, 47, HPBarWidth, 15, DARKGRAY); 
-                    DrawRectangle(7, 47, currentHPBarWidth, 15, (percentHP < 0.33f ? RED : percentHP < 0.67f ? YELLOW : GREEN)); 
-                    DrawRectangleLines(7, 47, HPBarWidth, 15, WHITE); 
-                    
-                    // Player Ammo
-                    for (int i = 0; i < 3; i++) // aumentar a espessura da borda
-                        DrawRectangleLines(300+i, 7+i, 300-2*i, 80-2*i, WHITE); 
-                    
-                    DrawText("Ammo", 320, 17, 20, WHITE);
-                    char charAmmoPool[3] = "";
-                    char ammoText[3] = "";
-                    for (int i = 0; i < 2; i++) {
-                        if (player.entity.grenadeAmmo < (i+1)*10)
-                            strcat(ammoText, "0");
+                    // Desenhar os backgrounds
+                    for (int i = 0; i < numBackgroundRendered; i++) {
+                        DrawTextureRec(farBackgroundPool[i].canvas.texture, (Rectangle) { 0, 0, (float)farBackgroundPool[i].canvas.texture.width, (float)-farBackgroundPool[i].canvas.texture.height },
+                        (Vector2) { farBackgroundPool[i].position.x, farBackgroundPool[i].position.y }, WHITE);
+                    }       
+                    // Desenhar os middlegrounds
+                    for (int i = 0; i < numBackgroundRendered; i++) {
+                        DrawTextureRec(middleBackgroundPool[i].canvas.texture, (Rectangle) { 0, 0, (float)middleBackgroundPool[i].canvas.texture.width, (float)-middleBackgroundPool[i].canvas.texture.height },
+                        (Vector2) { middleBackgroundPool[i].position.x, middleBackgroundPool[i].position.y }, WHITE);
+                    }       
+                    // Desenhar os foregrounds
+                    for (int i = 0; i < numBackgroundRendered; i++) {
+                        DrawTextureRec(nearBackgroundPool[i].canvas.texture, (Rectangle) { 0, 0, (float)nearBackgroundPool[i].canvas.texture.width, (float)-nearBackgroundPool[i].canvas.texture.height },
+                        (Vector2) { nearBackgroundPool[i].position.x, nearBackgroundPool[i].position.y }, WHITE);
                     }
-                    sprintf(charAmmoPool, "%d", player.entity.grenadeAmmo);
-                    strcat(ammoText, charAmmoPool);
-                    DrawText(ammoText, 320, 44, 20, WHITE);
 
+                    ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+                    ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+                    ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////   
+
+                    
+                    for (int i = 0; i < maxNumGrounds; i++) {
+                        if (groundPool[i].isActive)
+                            if (!groundPool[i].isInvisible)
+                                DrawRectangleRec(groundPool[i].rect, WHITE);
+                    }
+
+                    for (int i = 0; i < maxNumEnvProps; i++) {
+                        if (envPropsPool[i].isActive) {
+                            DrawTexturePro(envPropsAtlas, envPropsPool[i].frameRect, envPropsPool[i].drawableRect, (Vector2) {0, 0}, 0, WHITE);
+                        }
+                    }
+
+                    for (int i = 0; i < maxNumEnemies; i++) {
+                        if (enemyPool[i].isAlive) 
+                            DrawEnemy(&enemyPool[i], enemyTex, false, false, false); //enemypool, enemytex, detecção, vida, colisão
+                    }
+
+                    for (int i = 0; i < maxNumBullets; i++) {
+                        if (bulletsPool[i].isActive) 
+                            DrawBullet(&bulletsPool[i], miscAtlas, false); //bulletspool, miscAtlas, colisão                        
+                    }
+
+                    for (int i = 0; i < maxNumGrenade; i++) {
+                        if (grenadesPool[i].isActive)
+                            DrawGrenade(&grenadesPool[i], miscAtlas, false); //grenadespool, miscAtlas, colisão      
+                    }
+
+                    // Draw player
+                    DrawPlayer(&player, characterTexDiv, false);
+
+                    for (int i = 0; i < maxNumParticles; i++) {
+                        if (particlePool[i].isActive) 
+                            DrawParticle(&particlePool[i], miscAtlas); //grenadespool, miscAtlas                        
+                    }
+
+                    // Msgs acima de tudo
+                    for (int i = 0; i < maxNumMSGs; i++) {
+                        if (msgPool[i].isActive) 
+                            DrawMSG(&msgPool[i]); 
+
+                    }
+                EndMode2D();
+
+                DrawText(TextFormat("Difficulty: %d", difficulty), screenWidth - 300, 20, 40, WHITE);
+                // HUD
+                // Timer
+                int min = (int) (time/60);
+                int sec = time - min*60;
+                DrawText(TextFormat("%02d:%02d", min, sec), screenWidth/2 - 40*5/2, 20, 40, WHITE);
                 
-                    // Player points
-                    char pointsText[15] = "";
-                    char charPointsPool[15] = "";
-                    for (int i = 0; i < 14; i++) {
-                        if (player.points < (i+1)*10)
-                            strcat(pointsText, "0");
-                    }
-                    sprintf(charPointsPool, "%ld", player.points);
-                    strcat(pointsText, charPointsPool);
-                    DrawText(pointsText, 7, 7, 30, WHITE);
+                // Player HP
+                int HPBarWidth = 250;
+                float percentHP = ((float) player.entity.currentHP / (float) player.entity.maxHP);
+                int currentHPBarWidth = percentHP * HPBarWidth;
+                DrawRectangle(7, 47, HPBarWidth, 15, DARKGRAY); 
+                DrawRectangle(7, 47, currentHPBarWidth, 15, (percentHP < 0.33f ? RED : percentHP < 0.67f ? YELLOW : GREEN)); 
+                DrawRectangleLines(7, 47, HPBarWidth, 15, WHITE); 
+                
+                // Player Ammo
+                for (int i = 0; i < 3; i++) // aumentar a espessura da borda
+                    DrawRectangleLines(300+i, 7+i, 300-2*i, 80-2*i, WHITE); 
+                
+                DrawText("Ammo", 320, 17, 20, WHITE);
+                DrawText(TextFormat("%003d", player.entity.magnumAmmo), 320, 44, 20, WHITE);
+                DrawText("Grenade", 440, 17, 20, WHITE);
+                DrawText(TextFormat("%003d", player.entity.grenadeAmmo), 440, 44, 20, WHITE);
 
+                // Player points
+                DrawText(TextFormat("%00000000000000015ld", player.points), 7, 7, 30, WHITE);
+                
+                // Pause menu
+                if (gameState == PAUSE) {
+                    if (IsKeyPressed(KEY_DOWN)) {
+                        currentOption++;
+                        PlaySoundMulti(fxSoundPool[FX_CHANGE_SELECTION]);
+                    } else if (IsKeyPressed(KEY_UP)) {
+                        PlaySoundMulti(fxSoundPool[FX_CHANGE_SELECTION]);
+                        currentOption--;
+                    }
+
+                    if (IsKeyPressed(KEY_ENTER)) {
+                        nextScreen = currentOption;
+                        PlaySoundMulti(fxSoundPool[FX_SELECTED]);
+                    }
+
+                    if (currentOption > 2) currentOption = 1;
+                    if (currentOption < 1) currentOption = 2;
                     
-                    // Pause menu
-                    if (gameState == PAUSE) {
-                        if (IsKeyPressed(KEY_DOWN)) {
-                            currentOption++;
-                            PlaySoundMulti(fxSoundPool[FX_CHANGE_SELECTION]);
-                        } else if (IsKeyPressed(KEY_UP)) {
-                            PlaySoundMulti(fxSoundPool[FX_CHANGE_SELECTION]);
-                            currentOption--;
-                        }
-
-                        if (IsKeyPressed(KEY_ENTER)) {
-                            nextScreen = currentOption;
-                            PlaySoundMulti(fxSoundPool[FX_SELECTED]);
-                        }
-
-                        if (currentOption > 2) currentOption = 1;
-                        if (currentOption < 1) currentOption = 2;
-                        
-                        DrawRectangle(0, 0, screenWidth, screenHeight, ColorAlpha(BLACK, 0.7f));
-                        DrawText("PAUSED", screenWidth/2 - MeasureText("PAUSED", 80)/2, screenHeight/2 - 150, 80,WHITE);
-                        
-                        DrawText("Resume", screenWidth/2 - MeasureText("Resume", 40)/2, screenHeight/2 + 150, 40,(currentOption == 1 ? YELLOW : WHITE));
-                        DrawText("Exit to menu", screenWidth/2 - MeasureText("Exit to menu", 40)/2, screenHeight/2 + 200, 40,(currentOption == 2 ? YELLOW : WHITE));
-
-                        if (nextScreen == 1) {
-                            gameState = ACTIVE;
-                        } else if (nextScreen == 2) {
-                            gameState = MENU;
-                            goto Menu;
-                        }
-                    }
-                EndDrawing();
-            }
-            else if (gameState == GAMEOVER) {
-                BeginDrawing();
-                    ClearBackground(GetColor(0x052c46ff));
-                    int key = GetCharPressed();
+                    DrawRectangle(0, 0, screenWidth, screenHeight, ColorAlpha(BLACK, 0.7f));
+                    DrawText("PAUSED", screenWidth/2 - MeasureText("PAUSED", 80)/2, screenHeight/2 - 150, 80,WHITE);
                     
-                    // Check if more characters have been pressed on the same frame
-                    while (key > 0){
-                        // NOTE: Only allow keys in range [32..125]
-                        if ((key >= 32) && (key <= 125) && (letterCount < 3))
-                        {
-                            received_name[letterCount] = (char)key;
-                            received_name[letterCount+1] ='\0';
-                            letterCount++;
-                        }
-                        key = GetCharPressed();  // Check next character in the queue
+                    DrawText("Resume", screenWidth/2 - MeasureText("Resume", 40)/2, screenHeight/2 + 150, 40,(currentOption == 1 ? YELLOW : WHITE));
+                    DrawText("Exit to menu", screenWidth/2 - MeasureText("Exit to menu", 40)/2, screenHeight/2 + 200, 40,(currentOption == 2 ? YELLOW : WHITE));
+
+                    if (nextScreen == 1) {
+                        gameState = ACTIVE;
+                    } else if (nextScreen == 2) {
+                        gameState = GAMEOVER;
                     }
-                    if (IsKeyPressed(KEY_BACKSPACE))
+                }
+            EndDrawing();
+        }
+        else if (gameState == GAMEOVER) {
+            BeginDrawing();
+                ClearBackground(GetColor(0x052c46ff));
+                int key = GetCharPressed();
+                
+                // Check if more characters have been pressed on the same frame
+                while (key > 0){
+                    // NOTE: Only allow keys in range [32..125]
+                    if ((key >= 32) && (key <= 125) && (letterCount < 3))
                     {
-                        letterCount--;
-                        if (letterCount < 0) letterCount = 0;
-                        received_name[letterCount] = '\0';
+                        received_name[letterCount] = (char)key;
+                        received_name[letterCount+1] ='\0';
+                        letterCount++;
                     }
-                    DrawText(TextFormat("POINTS: %d", player.points), 600, 250, 20, RED);
-                    if(IsKeyPressed(KEY_ENTER) && letterCount==3){
-                        received_name[letterCount + 1] = '\0';
-                        received_points= player.points;
-                        if(received_points > atoi(scorePool[9].point)) { // Verifica se está no top 5
-                            UpdateScores(scorePool, received_name, received_points);
-                            WriteScore(fptr, fileName, scorePool);
-                        }
-                        gameState = SCORE;
-                        goto Menu;
+                    key = GetCharPressed();  // Check next character in the queue
+                }
+                if (IsKeyPressed(KEY_BACKSPACE))
+                {
+                    letterCount--;
+                    if (letterCount < 0) letterCount = 0;
+                    received_name[letterCount] = '\0';
+                }
+                DrawText(TextFormat("POINTS: %d", player.points), 600, 250, 20, RED);
+                if(IsKeyPressed(KEY_ENTER) && letterCount==3){
+                    received_name[letterCount + 1] = '\0';
+                    received_points= player.points;
+                    if(received_points > atoi(scorePool[9].point)) { // Verifica se está no top 5
+                        UpdateScores(scorePool, received_name, received_points);
+                        WriteScore(fptr, fileName, scorePool);
                     }
+                    gameState = SCORE;
+                    goto Menu;
+                }
 
-                    DrawText(received_name, (screenWidth/2 - 100) + 5, screenHeight/2 + 8, 80, WHITE);
-                    DrawText(TextFormat("INPUT CHARS: %i/%i", letterCount, 3), 315, 250, 20, DARKGRAY);
+                DrawText(received_name, (screenWidth/2 - 100) + 5, screenHeight/2 + 8, 80, WHITE);
+                DrawText(TextFormat("INPUT CHARS: %i/%i", letterCount, 3), 315, 250, 20, DARKGRAY);
 
-                    if (letterCount < 3)
-                    {
-                    // Draw blinking underscore char
-                        if (((framesCounter/20)%2) == 0){
-                            DrawText("_", (screenWidth/2 - 100) + 8 + MeasureText(received_name, 80), screenHeight/2 + 12, 80, WHITE);
-                        }
+                if (letterCount < 3)
+                {
+                // Draw blinking underscore char
+                    if (((framesCounter/20)%2) == 0){
+                        DrawText("_", (screenWidth/2 - 100) + 8 + MeasureText(received_name, 80), screenHeight/2 + 12, 80, WHITE);
                     }
-                    else DrawText("Press ENTER to confirm", 230, 330, 20, GRAY);
-                    
-                    if(letterCount > 0)DrawText("Press BACKSPACE to delete chars...", 230, 300, 20, GRAY);
-                EndDrawing();
-            }
-
-
+                }
+                else DrawText("Press ENTER to confirm", 230, 330, 20, GRAY);
+                
+                if(letterCount > 0)DrawText("Press BACKSPACE to delete chars...", 230, 300, 20, GRAY);
+            EndDrawing();
+        }
 
     }
 
@@ -534,6 +502,7 @@ Quit:
     UnloadTexture(characterTexDiv);
     UnloadTexture(miscAtlas);
     UnloadTexture(logo);
+    UnloadTexture(menuBackground);
     for (int i = 0; i < numBackgroundRendered; i++) {
         UnloadRenderTexture(farBackgroundPool[i].canvas);
         UnloadRenderTexture(nearBackgroundPool[i].canvas);
@@ -553,7 +522,7 @@ Quit:
     return 0;
 }
 
-Background CreateBackground(Player *player, Enemy *enemyPool, EnvProps *envPropsPool, Background *backgroundPool, Ground *groundPool, Texture2D srcAtlas, enum BACKGROUND_TYPES bgType, int *numBackground, int id) {
+Background CreateBackground(Player *player, Enemy *enemyPool, EnvProps *envPropsPool, Background *backgroundPool, Ground *groundPool, Texture2D srcAtlas, enum BACKGROUND_TYPES bgType, int *numBackground, int id, int difficulty) {
     Background dstBackground;
     int numBg = *numBackground;
 
@@ -561,7 +530,7 @@ Background CreateBackground(Player *player, Enemy *enemyPool, EnvProps *envProps
     {
     case BACKGROUND:
         dstBackground.relativePosition = -0.05f; // Velocidade do parallax (quanto menor, mais lento)
-        PopulateChunk(numBg, envPropsPool, groundPool, enemyPool);
+        PopulateChunk(numBg, envPropsPool, groundPool, enemyPool, difficulty);
         break;
     case MIDDLEGROUND:
         dstBackground.relativePosition = -0.025f; // Velocidade do parallax (quanto menor, mais lento)
@@ -595,7 +564,8 @@ Player CreatePlayer (int maxHP, Vector2 position, int width, int height) {
     newPlayer.entity.velocity.y = 0.0f;
     newPlayer.entity.momentum.x = 0.0f;
     newPlayer.entity.momentum.y = 0.0f;
-    newPlayer.entity.grenadeAmmo = 50;
+    newPlayer.entity.grenadeAmmo = 0;
+    newPlayer.entity.magnumAmmo = 200;
     newPlayer.entity.maxXSpeed = 400;
     newPlayer.entity.sprintSpeed = 800;
     newPlayer.entity.jumpSpeed = 250;
@@ -732,11 +702,11 @@ void CreateEnemy(Enemy *enemyPool, enum ENEMY_CLASSES class, Vector2 position, i
                     newEnemy->entity.UPPER_ATTACKING_NUM_FRAMES = PLAYER_UPPER_ATTACKING_NUM_FRAMES;
                     newEnemy->entity.BODY_DYING_ROW = PLAYER_BODY_DYING_ROW;
                     newEnemy->entity.BODY_DYING_NUM_FRAMES = PLAYER_BODY_DYING_NUM_FRAMES;
+                    newEnemy->pointsWorth = PTS_KILL_SWORDSMAN;
                     break;
                 case ASSASSIN:
-                    
                     newEnemy->viewDistance = 600;
-                    newEnemy->attackRange = 30;
+                    newEnemy->attackRange = 50;
                     newEnemy->attackSpeed = 0.8f; // Ataques por segundo
                     newEnemy->entity.GRID[0] = ASSASSIN_GRID[0];
                     newEnemy->entity.GRID[1] = ASSASSIN_GRID[1];
@@ -752,11 +722,12 @@ void CreateEnemy(Enemy *enemyPool, enum ENEMY_CLASSES class, Vector2 position, i
                     newEnemy->entity.UPPER_ATTACKING_NUM_FRAMES = ASSASSIN_UPPER_ATTACKING_NUM_FRAMES;
                     newEnemy->entity.BODY_DYING_ROW = ASSASSIN_BODY_DYING_ROW;
                     newEnemy->entity.BODY_DYING_NUM_FRAMES = ASSASSIN_BODY_DYING_NUM_FRAMES;
+                    newEnemy->pointsWorth = PTS_KILL_ASSASSIN;
                     break;
                 case GUNNER:
                     newEnemy->viewDistance = 600;
                     newEnemy->attackRange = 200;
-                    newEnemy->attackSpeed = 0.8f; // Ataques por segundo
+                    newEnemy->attackSpeed = 1.3f; // Ataques por segundo
                     newEnemy->entity.GRID[0] = GUNNER_GRID[0];
                     newEnemy->entity.GRID[1] = GUNNER_GRID[1];
                     newEnemy->entity.LEGS_IDLE_ROW = GUNNER_LEGS_IDLE_ROW;
@@ -771,11 +742,12 @@ void CreateEnemy(Enemy *enemyPool, enum ENEMY_CLASSES class, Vector2 position, i
                     newEnemy->entity.UPPER_ATTACKING_NUM_FRAMES = GUNNER_UPPER_ATTACKING_NUM_FRAMES;
                     newEnemy->entity.BODY_DYING_ROW = GUNNER_BODY_DYING_ROW;
                     newEnemy->entity.BODY_DYING_NUM_FRAMES = GUNNER_BODY_DYING_NUM_FRAMES;
+                    newEnemy->pointsWorth = PTS_KILL_GUNNER;
                     break;
                 case SNIPERSHOOTER:
                     newEnemy->viewDistance = 1000;
                     newEnemy->attackRange = 1000;
-                    newEnemy->attackSpeed = 0.8f; // Ataques por segundo
+                    newEnemy->attackSpeed = 0.2f; // Ataques por segundo
                     newEnemy->entity.GRID[0] = PLAYER_GRID[0];
                     newEnemy->entity.GRID[1] = PLAYER_GRID[1];
                     newEnemy->entity.LEGS_IDLE_ROW = PLAYER_LEGS_IDLE_ROW;
@@ -790,6 +762,7 @@ void CreateEnemy(Enemy *enemyPool, enum ENEMY_CLASSES class, Vector2 position, i
                     newEnemy->entity.UPPER_ATTACKING_NUM_FRAMES = PLAYER_UPPER_ATTACKING_NUM_FRAMES;
                     newEnemy->entity.BODY_DYING_ROW = PLAYER_BODY_DYING_ROW;
                     newEnemy->entity.BODY_DYING_NUM_FRAMES = PLAYER_BODY_DYING_NUM_FRAMES;
+                    newEnemy->pointsWorth = 0;
                     break;
                 case DRONE:
                     newEnemy->viewDistance = 600;
@@ -809,6 +782,7 @@ void CreateEnemy(Enemy *enemyPool, enum ENEMY_CLASSES class, Vector2 position, i
                     newEnemy->entity.UPPER_ATTACKING_NUM_FRAMES = PLAYER_UPPER_ATTACKING_NUM_FRAMES;
                     newEnemy->entity.BODY_DYING_ROW = PLAYER_BODY_DYING_ROW;
                     newEnemy->entity.BODY_DYING_NUM_FRAMES = PLAYER_BODY_DYING_NUM_FRAMES;
+                    newEnemy->pointsWorth = 0;
                     break;
                 case TURRET:
                     newEnemy->viewDistance = 600;
@@ -828,6 +802,7 @@ void CreateEnemy(Enemy *enemyPool, enum ENEMY_CLASSES class, Vector2 position, i
                     newEnemy->entity.UPPER_ATTACKING_NUM_FRAMES = PLAYER_UPPER_ATTACKING_NUM_FRAMES;
                     newEnemy->entity.BODY_DYING_ROW = PLAYER_BODY_DYING_ROW;
                     newEnemy->entity.BODY_DYING_NUM_FRAMES = PLAYER_BODY_DYING_NUM_FRAMES;
+                    newEnemy->pointsWorth = 0;
                     break;
                 case BOSS:
                     newEnemy->viewDistance = 600;
@@ -847,11 +822,13 @@ void CreateEnemy(Enemy *enemyPool, enum ENEMY_CLASSES class, Vector2 position, i
                     newEnemy->entity.UPPER_ATTACKING_NUM_FRAMES = PLAYER_UPPER_ATTACKING_NUM_FRAMES;
                     newEnemy->entity.BODY_DYING_ROW = PLAYER_BODY_DYING_ROW;
                     newEnemy->entity.BODY_DYING_NUM_FRAMES = PLAYER_BODY_DYING_NUM_FRAMES;
+                    newEnemy->pointsWorth = 0;
                     break;
                 default:
                     break;
             }
         
+            newEnemy->basePointsWorth = newEnemy->pointsWorth;
             newEnemy->entity.lowerAnimation.animationFrameWidth = newEnemy->entity.GRID[0];
             newEnemy->entity.lowerAnimation.animationFrameHeight = newEnemy->entity.GRID[1];
             newEnemy->entity.lowerAnimation.currentAnimationFrameRect.width = newEnemy->entity.lowerAnimation.animationFrameWidth;
@@ -1065,6 +1042,7 @@ void CreateEnvProp(EnvProps *envPropsPool, Ground *groundPool, enum OBJECTS_TYPE
                 frameY = OBJECTS_METAL_CRATE[1];
                 curProp->type = obType;
                 curProp->collisionRect = (Rectangle) {position.x, position.y, width, height};
+                curProp->pointsWorth = 0;
                 curProp->isDestroyable = false;
                 curProp->isCollectable = false;
                 canBeStepped = true;
@@ -1074,6 +1052,7 @@ void CreateEnvProp(EnvProps *envPropsPool, Ground *groundPool, enum OBJECTS_TYPE
                 frameX = OBJECTS_AMMO_CRATE[0];
                 frameY = OBJECTS_AMMO_CRATE[1];
                 curProp->collisionRect = (Rectangle) {position.x + 0.1f*width, position.y + 0.1f*height, 0.75f*width, 0.8f*height};
+                curProp->pointsWorth = PTS_COLLECT_AMMO;
                 curProp->isDestroyable = false;
                 curProp->isCollectable = true;
                 canBeStepped = false;
@@ -1085,6 +1064,7 @@ void CreateEnvProp(EnvProps *envPropsPool, Ground *groundPool, enum OBJECTS_TYPE
                 frameX = OBJECTS_HP_CRATE[0];
                 frameY = OBJECTS_HP_CRATE[1];
                 curProp->collisionRect = (Rectangle) {position.x + 0.1f*width, position.y + 0.1f*height, 0.75f*width, 0.8f*height};
+                curProp->pointsWorth = PTS_COLLECT_HP;
                 curProp->isDestroyable = false;
                 curProp->isCollectable = true;
                 canBeStepped = false;
@@ -1097,6 +1077,7 @@ void CreateEnvProp(EnvProps *envPropsPool, Ground *groundPool, enum OBJECTS_TYPE
                 frameX = OBJECTS_CARD_CRATE1[0];
                 frameY = OBJECTS_CARD_CRATE1[1];
                 curProp->collisionRect = (Rectangle) {position.x + 0.15f * width, position.y + 0.3f * height, 0.7f * width, 0.7f * height};
+                curProp->pointsWorth = PTS_DESTROY_CARD_CRATE;
                 curProp->isDestroyable = true;
                 curProp->isCollectable = false;
                 canBeStepped = true;
@@ -1107,6 +1088,7 @@ void CreateEnvProp(EnvProps *envPropsPool, Ground *groundPool, enum OBJECTS_TYPE
                 frameX = OBJECTS_CARD_CRATE2[0];
                 frameY = OBJECTS_CARD_CRATE2[1];
                 curProp->collisionRect = (Rectangle) {position.x + 0.15f * width, position.y + 0.3f * height, 0.7f * width, 0.7f * height};
+                curProp->pointsWorth = PTS_DESTROY_CARD_CRATE;
                 curProp->isDestroyable = true;
                 curProp->isCollectable = false;
                 canBeStepped = true;
@@ -1117,6 +1099,7 @@ void CreateEnvProp(EnvProps *envPropsPool, Ground *groundPool, enum OBJECTS_TYPE
                 frameX = OBJECTS_CARD_CRATE3[0];
                 frameY = OBJECTS_CARD_CRATE3[1];
                 curProp->collisionRect = (Rectangle) {position.x, position.y + height/2, width, height/2};
+                curProp->pointsWorth = PTS_DESTROY_CARD_CRATE;
                 curProp->isDestroyable = true;
                 curProp->isCollectable = false;
                 canBeStepped = true;
@@ -1135,6 +1118,7 @@ void CreateEnvProp(EnvProps *envPropsPool, Ground *groundPool, enum OBJECTS_TYPE
                 frameX = OBJECTS_EXPLOSIVE_BARREL[0];
                 frameY = OBJECTS_EXPLOSIVE_BARREL[1];
                 curProp->collisionRect = (Rectangle) {position.x+0.2f*width, position.y+0.08f*height, 0.6f*width, 0.9f*height};
+                curProp->pointsWorth = PTS_DESTROY_EXPLOSIVE_BARREL;
                 curProp->isDestroyable = true;
                 curProp->isCollectable = false;
                 canBeStepped = true;
@@ -1155,6 +1139,7 @@ void CreateEnvProp(EnvProps *envPropsPool, Ground *groundPool, enum OBJECTS_TYPE
                 frameX = OBJECTS_GARBAGE_BAG1[0];
                 frameY = OBJECTS_GARBAGE_BAG1[1];
                 curProp->collisionRect = (Rectangle) {position.x+0.2f*width, position.y+0.08f*height, 0.6f*width, 0.9f*height};
+                curProp->pointsWorth = PTS_DESTROY_GARBAGE_BAG;
                 curProp->isDestroyable = true;
                 curProp->isCollectable = false;
                 canBeStepped = false;
@@ -1165,6 +1150,7 @@ void CreateEnvProp(EnvProps *envPropsPool, Ground *groundPool, enum OBJECTS_TYPE
                 frameX = OBJECTS_GARBAGE_BAG2[0];
                 frameY = OBJECTS_GARBAGE_BAG2[1];
                 curProp->collisionRect = (Rectangle) {position.x+0.2f*width, position.y+0.08f*height, 0.6f*width, 0.9f*height};
+                curProp->pointsWorth = PTS_DESTROY_GARBAGE_BAG;
                 curProp->isDestroyable = true;
                 curProp->isCollectable = false;
                 canBeStepped = false;
@@ -1175,6 +1161,7 @@ void CreateEnvProp(EnvProps *envPropsPool, Ground *groundPool, enum OBJECTS_TYPE
                 frameX = OBJECTS_TRASH_CONTAINER[0];
                 frameY = OBJECTS_TRASH_CONTAINER[1];
                 curProp->collisionRect = (Rectangle) {position.x+0.1f*width, position.y+0.4f*height, 0.85f*width, 0.6f*height};
+                curProp->pointsWorth = 0;
                 curProp->isDestroyable = false;
                 curProp->isCollectable = false;
                 canBeStepped = true;
@@ -1186,6 +1173,7 @@ void CreateEnvProp(EnvProps *envPropsPool, Ground *groundPool, enum OBJECTS_TYPE
             frameW = OBJECTS_GRID[0];
             frameH = OBJECTS_GRID[1];
             curProp->id = i;
+            curProp->basePointsWorth = curProp->pointsWorth;
             curProp->type = obType;
             curProp->frameRect = (Rectangle) {frameX * frameW, frameY * frameH, frameW, frameH};
             curProp->groundID = CreateGround(groundPool, (Vector2){curProp->collisionRect.x, curProp->collisionRect.y}, curProp->collisionRect.width, curProp->collisionRect.height, canBeStepped, followCamera, blockPlayer, isInvisible, true, obType);
@@ -1212,18 +1200,26 @@ void DestroyEnvProp(Player *player, Enemy *enemyPool,EnvProps *envPropsPool, Gro
     if (envPropID != -1) 
         envProp = envPropsPool + envPropID;
     else
-        envProp = envPropsPool;
+        envProp = envPropsPool + 0;
 
     int groundId = envProp->groundID;
     Ground *ground = groundsPool + groundId;
     ground->isActive = false;
     envProp->isActive = false;
-    if (envProp->type == EXPLOSIVE_BARREL) {
-        ExplosionAOE(player, msgSystem, envProp, enemyPool, ground, particlePool, soundPool, 150, 150, (Vector2) {envProp->drawableRect.x+envProp->drawableRect.width/2, envProp->drawableRect.y+envProp->drawableRect.height/2}, PLAYER);
-        PlaySoundMulti(soundPool[FX_GRENADE_EXPLOSION]);
-        CreateParticle((Vector2) {envProp->drawableRect.x+envProp->drawableRect.width/2, envProp->drawableRect.y+envProp->drawableRect.height/2}, (Vector2) {0, 0}, particlePool, SMOKE, 4, 0, (Vector2) {1, 1}, false, 1);
-        CreateParticle((Vector2) {envProp->drawableRect.x+envProp->drawableRect.width/2, envProp->drawableRect.y+envProp->drawableRect.height/2}, (Vector2) {0, 0}, particlePool, EXPLOSION, 4, 0, (Vector2) {1, 1}, false, 1);
+    if (envPropID != -1) {
+        player->points += envProp->pointsWorth;
+        CreateMSG((Vector2) {envProp->drawableRect.x+envProp->drawableRect.width/2, envProp->drawableRect.y}, msgSystem, envProp->pointsWorth);
+        if (envProp->type == EXPLOSIVE_BARREL) {
+            ExplosionAOE(player, msgSystem, envProp, enemyPool, ground, particlePool, soundPool, 150, 150, (Vector2) {envProp->drawableRect.x+envProp->drawableRect.width/2, envProp->drawableRect.y+envProp->drawableRect.height/2}, PLAYER);
+            PlaySoundMulti(soundPool[FX_GRENADE_EXPLOSION]);
+            CreateParticle((Vector2) {envProp->drawableRect.x+envProp->drawableRect.width/2, envProp->drawableRect.y+envProp->drawableRect.height/2}, (Vector2) {0, 0}, particlePool, SMOKE, 4, 0, (Vector2) {1, 1}, false, 1);
+            CreateParticle((Vector2) {envProp->drawableRect.x+envProp->drawableRect.width/2, envProp->drawableRect.y+envProp->drawableRect.height/2}, (Vector2) {0, 0}, particlePool, EXPLOSION, 4, 0, (Vector2) {1, 1}, false, 1);
+        }
     }
+}
+
+void UpdateDifficulty(int *difficulty, float minX, float time) {
+    *difficulty = (int) ((minX + 10*time)/(7*screenWidth));
 }
 
 void UpdatePlayer(Player *player, Enemy *enemy, Bullet *bulletPool, Grenade *grenadePool, float delta, Ground *ground, EnvProps *envProps, Particle *particlePool, Sound *soundPool, MSGSystem *msgSystem, float minX) {
@@ -1276,12 +1272,15 @@ void UpdatePlayer(Player *player, Enemy *enemy, Bullet *bulletPool, Grenade *gre
             }
 
             if (IsKeyPressed(KEY_R)) {
-                if (player->entity.upperAnimation.currentAnimationState != ATTACKING || (player->entity.upperAnimation.currentAnimationState == ATTACKING && player->entity.upperAnimation.currentAnimationFrame > 1)) {
-                    CreateBullet(&(player->entity), bulletPool, MAGNUM, PLAYER);
-                    PlaySoundMulti(soundPool[FX_MAGNUM]);
-                    player->entity.upperAnimation.currentAnimationState = ATTACKING;
-                    player->entity.upperAnimation.currentAnimationFrame = 0;
-                    player->entity.upperAnimation.timeSinceLastFrame = 0;
+                if (player->entity.magnumAmmo > 0) {
+                    if (player->entity.upperAnimation.currentAnimationState != ATTACKING || (player->entity.upperAnimation.currentAnimationState == ATTACKING && player->entity.upperAnimation.currentAnimationFrame > 1)) {
+                        CreateBullet(&(player->entity), bulletPool, MAGNUM, PLAYER);
+                        PlaySoundMulti(soundPool[FX_MAGNUM]);
+                        player->entity.magnumAmmo--;
+                        player->entity.upperAnimation.currentAnimationState = ATTACKING;
+                        player->entity.upperAnimation.currentAnimationFrame = 0;
+                        player->entity.upperAnimation.timeSinceLastFrame = 0;
+                    }
                 }
                 //player->entity.animation.currentAnimationState = ATTACKING;
                 //player->entity.animation.currentAnimationFrame = 0;
@@ -1320,7 +1319,9 @@ void UpdatePlayer(Player *player, Enemy *enemy, Bullet *bulletPool, Grenade *gre
     }
 }
 
-void UpdateEnemy(Enemy *enemy, Player *player, Bullet *bulletPool, float delta, Ground *ground, EnvProps *envProps, Sound *soundPool, Particle *particlePool, MSGSystem *msgSystem, int minX) {
+void UpdateEnemy(Enemy *enemy, Player *player, Bullet *bulletPool, float delta, Ground *ground, EnvProps *envProps, Sound *soundPool, Particle *particlePool, MSGSystem *msgSystem, int minX, int difficulty, float time) {
+    enemy->pointsWorth = fmin(2*enemy->basePointsWorth, (int)((1+(difficulty)/15)*enemy->basePointsWorth/(time/10)));
+
     Entity *eEnt = &(enemy->entity);
     enum CHARACTER_STATE currentLowerState = eEnt->lowerAnimation.currentAnimationState;
     enum CHARACTER_STATE currentUpperState = eEnt->upperAnimation.currentAnimationState;
@@ -1361,30 +1362,36 @@ void UpdateEnemy(Enemy *enemy, Player *player, Bullet *bulletPool, float delta, 
     }
 }
      
-void UpdateBullets(Bullet *bullet, Enemy *enemy, Player *player, MSGSystem *msgSystem, Ground *ground, EnvProps *envProp, Sound *soundPool, Particle *particlePool, float delta, int maxX) {
+void UpdateBullets(Bullet *bullet, Enemy *enemyPool, Player *player, MSGSystem *msgSystem, Ground *groundsPool, EnvProps *envPropsPool, Sound *soundPool, Particle *particlePool, float delta, int maxX, int difficulty) {
     bullet->lifeTime += delta;
     bullet->animation.timeSinceLastFrame += delta;
     // Checar colisão
     // Grounds
     for (int i = 0; i < maxNumGrounds; i++)
     {
-        Ground *curGround = ground + i;
+        Ground *curGround = groundsPool + i;
         if (curGround->isActive) {
             if (CheckCollisionRecs(curGround->rect, bullet->collisionBox)) {
                 for (int j = 0; j < maxNumEnvProps; j++) {
-                    EnvProps *curProp = envProp + j;
+                    EnvProps *curProp = envPropsPool + j;
                     if (curProp->isActive) {
                         if (CheckCollisionRecs(curProp->collisionRect, bullet->collisionBox)) {
                             bullet->isActive = false;
                             if (curProp->isDestroyable) {
-                                if (GetRandomValue(1,3) == 1) { // Chance de dar ponto? Aparecer um inimigo?
+                                if (GetRandomValue(1,3) == 1) { 
+                                    player->points += curProp->pointsWorth;
+                                    CreateMSG((Vector2) {curProp->drawableRect.x+curProp->drawableRect.width/2, curProp->drawableRect.y}, msgSystem, curProp->pointsWorth);
                                     curProp->isActive = false;
                                     curGround->isActive = false;
                                     if (curProp->type == EXPLOSIVE_BARREL) {
-                                        ExplosionAOE(player, msgSystem, envProp, enemy, ground, particlePool, soundPool, 150, 150, (Vector2) {envProp->drawableRect.x+envProp->drawableRect.width/2, envProp->drawableRect.y+envProp->drawableRect.height/2}, PLAYER);
+                                        ExplosionAOE(player, msgSystem, envPropsPool, enemyPool, groundsPool, particlePool, soundPool, 150, 150, (Vector2) {curProp->drawableRect.x+curProp->drawableRect.width/2, curProp->drawableRect.y+curProp->drawableRect.height/2}, PLAYER);
                                         PlaySoundMulti(soundPool[FX_GRENADE_EXPLOSION]);
-                                        CreateParticle((Vector2) {envProp->drawableRect.x+envProp->drawableRect.width/2, envProp->drawableRect.y+envProp->drawableRect.height/2}, (Vector2) {0, 0}, particlePool, SMOKE, 4, 0, (Vector2) {1, 1}, false, 1);
-                                        CreateParticle((Vector2) {envProp->drawableRect.x+envProp->drawableRect.width/2, envProp->drawableRect.y+envProp->drawableRect.height/2}, (Vector2) {0, 0}, particlePool, EXPLOSION, 4, 0, (Vector2) {1, 1}, false, 1);
+                                        CreateParticle((Vector2) {curProp->drawableRect.x+curProp->drawableRect.width/2, curProp->drawableRect.y+curProp->drawableRect.height/2}, (Vector2) {0, 0}, particlePool, SMOKE, 4, 0, (Vector2) {1, 1}, false, 1);
+                                        CreateParticle((Vector2) {curProp->drawableRect.x+curProp->drawableRect.width/2, curProp->drawableRect.y+curProp->drawableRect.height/2}, (Vector2) {0, 0}, particlePool, EXPLOSION, 4, 0, (Vector2) {1, 1}, false, 1);
+                                    } else {
+                                        if (GetRandomValue(1,100) <= fmin(difficulty*0.25f, 4)) {  // 2% de chance de dropar ammo ou hp
+                                            CreateEnvProp(envPropsPool, groundsPool, (GetRandomValue(1,2) == 1 ? AMMO_CRATE : HP_CRATE), (Vector2) {curProp->drawableRect.x, curProp->drawableRect.y}, 130, 130);
+                                        }
                                     }
                                 }
                             }
@@ -1400,7 +1407,7 @@ void UpdateBullets(Bullet *bullet, Enemy *enemy, Player *player, MSGSystem *msgS
     if (bullet->srcEntity == PLAYER) {
         for (int i = 0; i < maxNumEnemies; i++)
         {
-            Enemy *currentEnemy = enemy + i;
+            Enemy *currentEnemy = enemyPool + i;
             if (currentEnemy->isAlive) {
                 if (currentEnemy->entity.lowerAnimation.currentAnimationState != DYING) {
                     if (CheckCollisionRecs(currentEnemy->entity.collisionBox, bullet->collisionBox) || CheckCollisionCircleRec(currentEnemy->entity.collisionHead.center, currentEnemy->entity.collisionHead.radius, bullet->collisionBox)) {
@@ -1604,9 +1611,11 @@ void UpdateGrounds(Player *player, Ground *ground, float delta, float minX) {
         ground->isActive = false;
 }
 
-void UpdateEnvProps(Player *player, Enemy *enemyPool, EnvProps *envPropsPool, Ground *groundsPool, Particle *particlePool, Sound *soundPool, MSGSystem *msgSystem, float delta, float minX) {
-    if (envPropsPool->drawableRect.x + envPropsPool->drawableRect.width < minX) 
-        DestroyEnvProp(player, enemyPool, envPropsPool, groundsPool, particlePool, soundPool, msgSystem, -1);
+void UpdateEnvProps(Player *player, Enemy *enemyPool, EnvProps *envProp, Ground *groundsPool, Particle *particlePool, Sound *soundPool, MSGSystem *msgSystem, float delta, float minX, int difficulty, int time) {
+    envProp->pointsWorth = fmin(2*envProp->basePointsWorth, (int)((1+(difficulty)/15)*envProp->basePointsWorth/(time/10)));
+
+    if (envProp->drawableRect.x + envProp->drawableRect.width < minX) 
+        DestroyEnvProp(&player, enemyPool, envProp, groundsPool, particlePool, soundPool, msgSystem, -1);
 }
 
 void UpdateParticles(Particle *curParticle, float delta, float minX) {
@@ -1688,7 +1697,7 @@ void UpdateMSGs(MSGSystem *curMsg, float delta) {
 
 }
 
-void UpdateBackground(Player *player, Background *backgroundPool, int i, Texture2D srcAtlas, Enemy *enemyPool, EnvProps *envPropsPool, Ground *groundPool, float delta, int *numBackground, float minX, float *maxX) {
+void UpdateBackground(Player *player, Background *backgroundPool, int i, Texture2D srcAtlas, Enemy *enemyPool, EnvProps *envPropsPool, Ground *groundPool, float delta, int *numBackground, float minX, float *maxX, int difficulty) {
     Background *bgP = backgroundPool + i;
     bgP->position.x = (bgP->originalX - minX*bgP->relativePosition);
     if (bgP->position.x+bgP->width < minX) {
@@ -1697,7 +1706,7 @@ void UpdateBackground(Player *player, Background *backgroundPool, int i, Texture
         ClearBackground(GetColor(0x052c46ff));
         EndTextureMode();
         UnloadRenderTexture(bgP->canvas);
-        *bgP = CreateBackground(player, enemyPool, envPropsPool, backgroundPool, groundPool, srcAtlas, bgP->bgType, numBackground, i);
+        *bgP = CreateBackground(player, enemyPool, envPropsPool, backgroundPool, groundPool, srcAtlas, bgP->bgType, numBackground, i, difficulty);
         if (*maxX <= bgP->position.x + bgP->width)
             *maxX = bgP->position.x + bgP->width;
     }
@@ -1760,7 +1769,7 @@ void DrawParticle(Particle *particle, Texture2D texture) {
 }
 
 void DrawMSG(MSGSystem *msg) {
-    DrawText(TextFormat("%04i", msg->msg), msg->position.x, msg->position.y, 15, msg->color);
+    DrawText(TextFormat("%i", msg->msg), msg->position.x, msg->position.y, 15, msg->color);
 }
 
 void DrawPlayer(Player *player, Texture2D texture, bool drawCollisionBox) {

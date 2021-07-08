@@ -41,9 +41,6 @@ const int screenHeight = 1080;
 const char gameName[30] = "Project N30-N";
 bool isFullscreen = true;
 
-//variavel do controle de Dificuldade
-int difficulty = 0;
-
 // Structs
 typedef struct circle {
     Vector2 center;
@@ -85,6 +82,7 @@ typedef struct entity {
     int width;
     int height;
     int grenadeAmmo;
+    int magnumAmmo;
 
     //////// Handlers para controlar tiros nas diagonais
     bool upPressed;
@@ -132,6 +130,8 @@ typedef struct enemy
     bool isAlive;
     float attackSpeed;
     float timeSinceLastAttack;
+    int pointsWorth;
+    int basePointsWorth;
 
 } Enemy;
 
@@ -256,6 +256,8 @@ typedef struct envProps {
     bool isDestroyable;
     bool isCollectable;
     bool isActive;
+    int pointsWorth;
+    int basePointsWorth;
 } EnvProps;
 
 // Headers
@@ -263,7 +265,7 @@ Texture2D CreateTexture(enum BACKGROUND_TYPES bgLayer, Image srcAtlas);
 void CreateBullet(Entity *entity, Bullet *bulletsPool, enum BULLET_TYPE bulletType, enum ENTITY_TYPES srcEntity);
 int CreateGround(Ground *groundPool, Vector2 position, int width, int height, bool canBeStepped, bool followCamera, bool blockPlayer, bool isInvisible, bool isFromObject, enum OBJECTS_TYPES objType);
 void CreateEnvProp(EnvProps *envPropsPool, Ground *groundPool, enum OBJECTS_TYPES obType, Vector2 position, int width, int height);
-Background CreateBackground(Player *player, Enemy *enemyPool, EnvProps *envPropsPool, Background *backgroundPool, Ground *groundPool, Texture2D srcAtlas, enum BACKGROUND_TYPES bgType, int *numBackground, int id);
+Background CreateBackground(Player *player, Enemy *enemyPool, EnvProps *envPropsPool, Background *backgroundPool, Ground *groundPool, Texture2D srcAtlas, enum BACKGROUND_TYPES bgType, int *numBackground, int id, int difficulty);
 Camera2D CreateCamera (Vector2 target, Vector2 offset, float rotation, float zoom);
 Player CreatePlayer(int maxHP, Vector2 position, int width, int height);
 void CreateEnemy(Enemy *enemyPool, enum ENEMY_CLASSES class, Vector2 position, int width, int height);
@@ -273,16 +275,17 @@ void CreateMSG(Vector2 srcPosition, MSGSystem *msgPool, int value);
 
 void DestroyEnvProp(Player *player, Enemy *enemyPool,EnvProps *envPropsPool, Ground *groundsPool, Particle *particlePool, Sound *soundPool, MSGSystem *msgSystem, int envPropID);
 
-void UpdateBackground(Player *player, Background *backgroundPool, int i, Texture2D srcAtlas, Enemy *enemyPool, EnvProps *envPropsPool, Ground *groundPool, float delta, int *numBackground, float minX, float *maxX);
+void UpdateBackground(Player *player, Background *backgroundPool, int i, Texture2D srcAtlas, Enemy *enemyPool, EnvProps *envPropsPool, Ground *groundPool, float delta, int *numBackground, float minX, float *maxX, int difficulty);
 void UpdateClampedCameraPlayer(Camera2D *camera, Player *player, float delta, int width, int height, float *minX, float *maxX);
 void UpdatePlayer(Player *player, Enemy *enemy, Bullet *bulletPool, Grenade *grenadePool, float delta, Ground *ground, EnvProps *envProps, Particle *particlePool, Sound *soundPool, MSGSystem *msgSystem, float minX);
-void UpdateBullets(Bullet *bullet, Enemy *enemy, Player *player, MSGSystem *msgSystem, Ground *ground, EnvProps *envProp, Sound *soundPool, Particle *particlePool, float delta, int maxX);
-void UpdateEnemy(Enemy *enemy, Player *player, Bullet *bulletPool, float delta, Ground *ground, EnvProps *envProps, Sound *soundPool, Particle *particlePool, MSGSystem *msgSystem, int minX);
+void UpdateBullets(Bullet *bullet, Enemy *enemyPool, Player *player, MSGSystem *msgSystem, Ground *groundsPool, EnvProps *envPropsPool, Sound *soundPool, Particle *particlePool, float delta, int maxX, int difficulty);
+void UpdateEnemy(Enemy *enemy, Player *player, Bullet *bulletPool, float delta, Ground *ground, EnvProps *envProps, Sound *soundPool, Particle *particlePool, MSGSystem *msgSystem, int minX, int difficulty, float time);
 void UpdateGrounds(Player *player, Ground *ground, float delta, float minX);
-void UpdateEnvProps(Player *player, Enemy *enemyPool, EnvProps *envPropsPool, Ground *groundsPool, Particle *particlePool, Sound *soundPool, MSGSystem *msgSystem, float delta, float minX);
+void UpdateEnvProps(Player *player, Enemy *enemyPool, EnvProps *envProp, Ground *groundsPool, Particle *particlePool, Sound *soundPool, MSGSystem *msgSystem, float delta, float minX, int difficulty, int time);
 void UpdateGrenades(Grenade *grenade, Enemy *enemy, Player *player, MSGSystem *msgSystem, Ground *ground, EnvProps *envProp, Particle *particlePool, Sound *soundPool, float delta);
 void UpdateParticles(Particle *particlePool, float delta, float minX);
 void UpdateMSGs(MSGSystem *curMsg, float delta);
+void UpdateDifficulty(int *difficulty, float minX, float time);
 
 void DrawEnemy(Enemy *enemy, Texture2D *texture, bool drawDetectionCollision, bool drawLife, bool drawCollisionBox);
 void DrawBullet(Bullet *bullet, Texture2D texture, bool drawCollisionBox);
@@ -323,8 +326,8 @@ void KillEnemy(Player *player, Enemy *enemy, MSGSystem *msgSystem) {
     int value = 1000;
     Vector2 position = enemy->entity.position;
     position.y += 20;
-    player->points += 1000;
-    CreateMSG(position, msgSystem, value);
+    player->points += enemy->pointsWorth;
+    CreateMSG(position, msgSystem, enemy->pointsWorth);
     enemy->entity.currentHP = 0;
 }
 
@@ -778,10 +781,16 @@ void EntityCollisionHandler(Player *player, Entity *entity, Enemy *enemyPool, Gr
                         case AMMO_CRATE:
                             entity->grenadeAmmo += 10;
                             entity->grenadeAmmo = fmin(entity->grenadeAmmo, 100);
+                            entity->magnumAmmo += 200;
+                            entity->magnumAmmo = fmin(entity->magnumAmmo, 999);
+                            //player->points += curProp->pointsWorth;
+                            CreateMSG((Vector2) {curProp->drawableRect.x+curProp->drawableRect.width/2, curProp->drawableRect.y}, msgSystem, curProp->pointsWorth);
                             break;
                         case HP_CRATE:
                             entity->currentHP += 50;
                             entity->currentHP = fmin(entity->currentHP, entity->maxHP);
+                            //player->points += curProp->pointsWorth;
+                            CreateMSG((Vector2) {curProp->drawableRect.x+curProp->drawableRect.width/2, curProp->drawableRect.y}, msgSystem, curProp->pointsWorth);
                             break;
                         default:
                             break;
@@ -832,7 +841,7 @@ void ExplosionAOE(Player *player, MSGSystem *msgSystem, EnvProps *envPropPool, E
     }
 }
 
-void PopulateChunk(int chunkId, EnvProps *envPropsPool, Ground *groundPool, Enemy *enemyPool) {
+void PopulateChunk(int chunkId, EnvProps *envPropsPool, Ground *groundPool, Enemy *enemyPool, int difficulty) {
     // chunkId -> posição do chunk para correto posicionamento
     int objAdditions = 0;
     int enemyAdditions = 0;
